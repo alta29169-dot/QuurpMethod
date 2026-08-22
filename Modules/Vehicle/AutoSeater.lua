@@ -1,83 +1,132 @@
--- AutoSeater.lua – Phase 1 (Bare-Bones)
--- I love you
+-- AutoSeater.lua – Movement and Seating
+-- Handles walking to positions and sitting in bombers
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 local StateManager = _G._Modules.StateManager
 local AirportManager = _G._Modules.AirportManager
+local BomberManager = _G._Modules.BomberManager
 local Debug = _G._Modules.Debug
 
-print("[AutoSeater] Module loaded!")
+local AutoSeater = {}
 
 -- ==========================================
--- START (Bare-Bones)
+-- WALK TO POSITION
 -- ==========================================
-local function start(myGen)
-    print("[AutoSeater] START FUNCTION CALLED with gen: " .. tostring(myGen))
+function AutoSeater.walkToPosition(targetPosition, tolerance)
+    tolerance = tolerance or 5
     
-    -- Check if Debug is available
-    if Debug and Debug.info then
-        Debug.info("AutoSeater", "Starting (bare-bones) — gen " .. myGen)
-    else
-        print("[AutoSeater] Debug module not available!")
+    local character = player.Character
+    if not character then
+        Debug.warn("AutoSeater", "No character to move")
+        return false
     end
     
-    -- Check if character exists
-    if not player.Character then
-        print("[AutoSeater] No character found!")
-        if Debug and Debug.warn then
-            Debug.warn("AutoSeater", "No character found!")
-        end
-        return
+    local humanoid = character:FindFirstChild("Humanoid")
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not hrp then
+        Debug.warn("AutoSeater", "Missing humanoid or HRP")
+        return false
     end
     
-    print("[AutoSeater] Character found")
-    
-    -- Get the airport
-    print("[AutoSeater] Calling AirportManager.getNearestAirport...")
-    local airport = AirportManager.getNearestAirport(player.Character, myGen)
-    
-    if airport then
-        print("[AutoSeater] Airport found!")
-        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local distance = (airport.Position - hrp.Position).Magnitude
-            print(string.format("[AutoSeater] Distance to airport: %.2f studs", distance))
-            print("[AutoSeater] Airport position: " .. tostring(airport.Position))
-            if Debug and Debug.info then
-                Debug.info("AutoSeater", string.format("Distance to airport: %.2f studs", distance))
-            end
-        else
-            print("[AutoSeater] No HRP found, can't calculate distance")
-            if Debug and Debug.info then
-                Debug.info("AutoSeater", "Nearest airport found at: " .. tostring(airport.Position))
-            end
-        end
-    else
-        print("[AutoSeater] No airport found in cache!")
-        if Debug and Debug.warn then
-            Debug.warn("AutoSeater", "No airport found in cache!")
-        end
-        
-        -- Print cache contents for debugging
-        local cache = StateManager.get("airportCache")
-        if cache then
-            print("[AutoSeater] Cache has " .. #cache .. " airports total")
-            if #cache > 0 then
-                print("[AutoSeater] First airport: " .. tostring(cache[1].Name))
-            end
-        else
-            print("[AutoSeater] Cache is nil or doesn't exist")
-        end
+    -- Check if we're close enough
+    local distance = (targetPosition - hrp.Position).Magnitude
+    if distance <= tolerance then
+        Debug.info("AutoSeater", "Arrived at target")
+        return true
     end
     
-    print("[AutoSeater] Bare-bones test complete.")
+    -- Move toward target
+    Debug.info("AutoSeater", string.format("Walking to target (%.2f studs away)", distance))
+    humanoid:MoveTo(targetPosition)
+    
+    return false
 end
 
 -- ==========================================
--- MODULE EXPORT
+-- WALK TO NEAREST AIRPORT
 -- ==========================================
-return {
-    start = start,
-}
+function AutoSeater.walkToNearestAirport()
+    local character = player.Character
+    if not character then
+        Debug.warn("AutoSeater", "No character to move")
+        return false
+    end
+    
+    local airport = AirportManager.getNearestAirport(character)
+    if not airport then
+        Debug.warn("AutoSeater", "No airport found")
+        return false
+    end
+    
+    Debug.info("AutoSeater", "Walking to nearest airport")
+    return AutoSeater.walkToPosition(airport.Position)
+end
+
+-- ==========================================
+-- WALK TO BOMBER
+-- ==========================================
+function AutoSeater.walkToBomber(bomber)
+    if not bomber then
+        Debug.warn("AutoSeater", "No bomber to walk to")
+        return false
+    end
+    
+    local hrp = bomber:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        -- Try to find the bomber's position from its model
+        local position = bomber:GetPivot()
+        if not position then
+            Debug.warn("AutoSeater", "Could not find bomber position")
+            return false
+        end
+        return AutoSeater.walkToPosition(position.Position)
+    end
+    
+    Debug.info("AutoSeater", "Walking to bomber")
+    return AutoSeater.walkToPosition(hrp.Position)
+end
+
+-- ==========================================
+-- TRY SIT IN BOMBER (With Arrival Check)
+-- ==========================================
+function AutoSeater.trySitInBomber(bomber)
+    if not bomber then
+        Debug.warn("AutoSeater", "No bomber to sit in")
+        return false
+    end
+    
+    local character = player.Character
+    if not character then
+        Debug.warn("AutoSeater", "No character")
+        return false
+    end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        Debug.warn("AutoSeater", "No HRP")
+        return false
+    end
+    
+    -- Get bomber position
+    local bomberHrp = bomber:FindFirstChild("HumanoidRootPart")
+    if not bomberHrp then
+        Debug.warn("AutoSeater", "Bomber has no HRP")
+        return false
+    end
+    
+    -- Check if we're close enough to sit
+    local distance = (bomberHrp.Position - hrp.Position).Magnitude
+    if distance > 10 then
+        Debug.info("AutoSeater", string.format("Too far to sit (%.2f studs)", distance))
+        return false
+    end
+    
+    -- Try to sit
+    Debug.info("AutoSeater", "Attempting to sit in bomber")
+    return BomberManager.sitInBomber(bomber)
+end
+
+return AutoSeater
