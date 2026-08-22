@@ -1,20 +1,31 @@
--- AirportManager.lua
+-- AirportManager.lua – qurp v3
+-- Stores airport cache in StateManager (single source of truth)
+
 local Workspace = game:GetService("Workspace")
 local StateManager = _G._Modules.StateManager
 local DockLocator = _G._Modules.DockLocator
 
+-- ==========================================
+-- CACHE AIRPORTS
+-- ==========================================
 local function cacheAirports(myGen)
-    -- Check StateManager first
+    -- Check if already cached for this generation
     if StateManager.get("airportsCached") then
-        print("[AirportManager] Already cached for this generation")
+        print("[AirportManager] Already cached — skipping")
         return true
     end
     
     local dock = DockLocator.getDock()
-    if not dock then return false end
+    if not dock then
+        print("[AirportManager] Could not find dock.")
+        return false
+    end
     
     local vehicleSP = dock:FindFirstChild("VehicleSP")
-    if not vehicleSP then return false end
+    if not vehicleSP then
+        print("[AirportManager] No VehicleSP found.")
+        return false
+    end
     
     local cache = {}
     for _, child in ipairs(vehicleSP:GetChildren()) do
@@ -23,7 +34,7 @@ local function cacheAirports(myGen)
         end
     end
     
-    -- ✅ Store in StateManager
+    -- Store in StateManager
     StateManager.set("airportCache", cache)
     StateManager.set("airportsCached", true)
     
@@ -31,12 +42,28 @@ local function cacheAirports(myGen)
     return #cache > 0
 end
 
-local function getNearestAirport(playerChar)
+-- ==========================================
+-- GET NEAREST AIRPORT
+-- ==========================================
+local function getNearestAirport(playerChar, myGen)
+    -- ✅ Read from StateManager
     local cache = StateManager.get("airportCache")
-    if not cache or #cache == 0 then return nil end
     
-    local hrp = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
+    if not cache or #cache == 0 then
+        print("[AirportManager] No airport cache found.")
+        return nil
+    end
+    
+    if not playerChar then
+        print("[AirportManager] No player character.")
+        return nil
+    end
+    
+    local hrp = playerChar:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        print("[AirportManager] No HumanoidRootPart.")
+        return nil
+    end
     
     local nearest = nil
     local nearestDist = math.huge
