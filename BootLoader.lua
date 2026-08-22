@@ -14,6 +14,9 @@ local MODULE_NAMES = {
     "DockLocator",
     "HarbourTeleporter",
     "AirportManager",   
+    "VehicleSpawner",  
+    "VehicleSeeder", 
+    "AutoSeater", 
     "Main",
 }
 
