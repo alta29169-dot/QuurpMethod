@@ -1,5 +1,5 @@
 -- Main.lua – qurp v3 (Phase 1)
--- I love you
+-- I love you Azzy
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
