@@ -1,5 +1,5 @@
--- PathfindingUtils.lua – qurp v3 -- I love you so damn much
--- With climbing support for trusses
+-- PathfindingUtils.lua – qurp v3 -- LoveLove6000
+-- With climbing support (using Label detection)
 
 local PathfindingService = game:GetService("PathfindingService")
 
@@ -10,7 +10,7 @@ PF.defaultOptions = {
     AgentRadius = 2,
     AgentHeight = 5,
     AgentCanJump = true,
-    AgentCanClimb = true,  -- ← ADDED FOR TRUSSES
+    AgentCanClimb = true,  -- ← This tells the pathfinder to consider climbing paths
     AgentMaxSlope = 45,
     WaypointSpacing = 10,
 }
@@ -60,10 +60,15 @@ function PF.moveTo(character, targetPos, options, abortCheck)
             return false
         end
         
-        -- Enable climbing if needed
-        local action = waypoint.Action
-        if action == Enum.PathWaypointAction.Climb then
+        -- Check if this waypoint requires climbing
+        -- Climbing waypoints have Action = Custom and Label containing "Climb" [citation:9]
+        local isClimb = (waypoint.Action == Enum.PathWaypointAction.Custom and 
+                        waypoint.Label and string.find(waypoint.Label, "Climb"))
+        
+        if isClimb then
+            -- Enable climbing state on humanoid
             humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+            print("[PathfindingUtils] Climbing waypoint detected")
         end
         
         -- Move to waypoint
@@ -110,14 +115,12 @@ function PF.moveTo(character, targetPos, options, abortCheck)
                 end
             end
             
-            -- Safety timeout: if we've been trying for too long
+            -- Safety timeout
             if stuckCount > 30 then
                 print("[PathfindingUtils] Timeout, skipping waypoint")
                 break
             end
         end
-        
-        -- If we broke out early due to stuck/timeout, move to next waypoint
     end
     
     -- Final check: Are we at the target?
@@ -203,15 +206,6 @@ function PF.pathExists(startPos, endPos, options)
     end)
     
     return success and path.Status == Enum.PathStatus.Success
-end
-
--- ==========================================
--- ENABLE CLIMBING ON HUMANOD
--- ==========================================
-function PF.enableClimbing(humanoid)
-    if humanoid then
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
-    end
 end
 
 return PF
