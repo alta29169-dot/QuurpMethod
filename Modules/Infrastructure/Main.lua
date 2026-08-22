@@ -1,11 +1,13 @@
--- Main.lua – Phase 1 (Test Version)
--- Goal: Prove respawn loop works before adding AutoSeater
+-- Main.lua – Phase 1 (Test Version with Teleport)
+-- Goal: Prove respawn loop + teleport work
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 local Debug = _G._Modules.Debug
 local StateManager = _G._Modules.StateManager
+local DockLocator = _G._Modules.DockLocator
+local HarbourTeleporter = _G._Modules.HarbourTeleporter
 
 -- ===== STATE =====
 local isRunning = true
@@ -36,20 +38,33 @@ local function onRespawn(char)
         task.wait(0.1)
     end
     
-    if hrp then
-        Debug.info("Main", "Character loaded after " .. waitCount .. " checks")
-        StateManager.set("characterLoaded", true)
-        StateManager.set("isAlive", true)
-    else
+    if not hrp then
         Debug.warn("Main", "HRP never loaded")
         return
     end
     
-    -- ===== PHASE 1: Just log that we would run AutoSeater =====
-    Debug.info("Main", "✅ Respawn loop works! (AutoSeater would run now)")
+    Debug.info("Main", "Character loaded after " .. waitCount .. " checks")
+    StateManager.set("characterLoaded", true)
+    StateManager.set("isAlive", true)
     
-    -- Print current state for debugging
-    Debug.info("Main", "State: seated=" .. tostring(StateManager.get("seated")))
+    -- ===== TEST: TELEPORT TO HARBOUR =====
+    Debug.info("Main", "Testing HarbourTeleporter...")
+    
+    local dock = DockLocator.getDock()
+    if dock then
+        Debug.info("Main", "Dock found: " .. dock.Name)
+    else
+        Debug.warn("Main", "No dock found!")
+    end
+    
+    local teleportSuccess = HarbourTeleporter.teleportToHarbour(myGen)
+    if teleportSuccess then
+        Debug.info("Main", "✅ Teleport successful!")
+    else
+        Debug.warn("Main", "❌ Teleport failed!")
+    end
+    
+    Debug.info("Main", "✅ Respawn + Teleport test complete.")
 end
 
 -- ==========================================
