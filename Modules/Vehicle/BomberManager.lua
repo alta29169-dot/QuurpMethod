@@ -124,46 +124,17 @@ function BomberManager.spawnBomber(airport)
         return false
     end
     
-    -- Find the VehicleSP
-    local dock = Workspace:FindFirstChild("USDock")
-    if not dock then
-        Debug.warn("BomberManager", "USDock not found")
-        return false
-    end
-    
-    local vehicleSP = dock:FindFirstChild("VehicleSP")
-    if not vehicleSP then
-        Debug.warn("BomberManager", "VehicleSP not found")
-        return false
-    end
-    
-    -- Get all children and find the airport's spawn point
-    local children = vehicleSP:GetChildren()
-    local spawnPoint = nil
-    
-    for i, child in ipairs(children) do
-        if child == airport then
-            -- The airport itself is the spawn point at index 8 in your example
-            -- But let's use the actual airport reference
-            spawnPoint = child
-            break
-        end
-    end
-    
-    if not spawnPoint then
-        Debug.warn("BomberManager", "Could not find spawn point for airport")
-        return false
-    end
-    
-    -- Fire the remote event to spawn
+    -- Get the remote event
     local remote = ReplicatedStorage:FindFirstChild("Event")
     if not remote then
-        Debug.warn("BomberManager", "Remote Event not found")
+        Debug.warn("BomberManager", "Remote Event not found in ReplicatedStorage")
         return false
     end
     
+    -- Fire the remote event with the airport instance
+    -- Format: Event:FireServer("VSpawn", { airport, "Bomber", 2 })
     Debug.info("BomberManager", "Spawning bomber at airport: " .. airport.Name)
-    remote:FireServer("VSpawn", { spawnPoint, "Bomber", 2 })
+    remote:FireServer("VSpawn", { airport, "Bomber", 2 })
     
     -- Wait a moment for the bomber to spawn
     task.wait(2)
