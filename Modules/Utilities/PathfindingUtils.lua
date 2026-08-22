@@ -1,4 +1,5 @@
--- PathfindingUtils.lua – Fixed Waypoint Following Love Love All The Way
+-- PathfindingUtils.lua – qurp v3 -- I love you so damn much
+-- With climbing support for trusses
 
 local PathfindingService = game:GetService("PathfindingService")
 
@@ -9,6 +10,7 @@ PF.defaultOptions = {
     AgentRadius = 2,
     AgentHeight = 5,
     AgentCanJump = true,
+    AgentCanClimb = true,  -- ← ADDED FOR TRUSSES
     AgentMaxSlope = 45,
     WaypointSpacing = 10,
 }
@@ -23,10 +25,19 @@ function PF.moveTo(character, targetPos, options, abortCheck)
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not hrp or not humanoid then return false end
     
-    options = options or PF.defaultOptions
+    -- Merge options with defaults
+    options = options or {}
+    local pathOptions = {
+        AgentRadius = options.AgentRadius or PF.defaultOptions.AgentRadius,
+        AgentHeight = options.AgentHeight or PF.defaultOptions.AgentHeight,
+        AgentCanJump = options.AgentCanJump ~= nil and options.AgentCanJump or PF.defaultOptions.AgentCanJump,
+        AgentCanClimb = options.AgentCanClimb ~= nil and options.AgentCanClimb or PF.defaultOptions.AgentCanClimb,
+        AgentMaxSlope = options.AgentMaxSlope or PF.defaultOptions.AgentMaxSlope,
+        WaypointSpacing = options.WaypointSpacing or PF.defaultOptions.WaypointSpacing,
+    }
     
     -- Step 1: Try pathfinding
-    local path = PathfindingService:CreatePath(options)
+    local path = PathfindingService:CreatePath(pathOptions)
     local success, err = pcall(function()
         path:ComputeAsync(hrp.Position, targetPos)
     end)
@@ -49,17 +60,21 @@ function PF.moveTo(character, targetPos, options, abortCheck)
             return false
         end
         
+        -- Enable climbing if needed
+        local action = waypoint.Action
+        if action == Enum.PathWaypointAction.Climb then
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+        end
+        
         -- Move to waypoint
         humanoid:MoveTo(waypoint.Position)
         if i == lastWaypointIndex then
             humanoid:MoveTo(waypoint.Position) -- Double call for final destination
         end
         
-        -- === FIXED: Better waypoint detection ===
+        -- Better waypoint detection
         local startPos = hrp.Position
         local dist = (startPos - waypoint.Position).Magnitude
-        local stuckCheck = 0
-        local lastDist = dist
         local stuckCount = 0
         
         -- If we're already close enough, skip this waypoint
@@ -84,7 +99,6 @@ function PF.moveTo(character, targetPos, options, abortCheck)
             local progress = (startPos - currentPos).Magnitude
             if progress > 2 then
                 -- We've moved at least 2 studs from start position
-                -- Update start position for next check
                 startPos = currentPos
                 stuckCount = 0
             else
@@ -145,8 +159,18 @@ end
 -- GET PATH (for debugging / visual)
 -- ==========================================
 function PF.getPath(startPos, endPos, options)
-    options = options or PF.defaultOptions
-    local path = PathfindingService:CreatePath(options)
+    -- Merge options with defaults
+    options = options or {}
+    local pathOptions = {
+        AgentRadius = options.AgentRadius or PF.defaultOptions.AgentRadius,
+        AgentHeight = options.AgentHeight or PF.defaultOptions.AgentHeight,
+        AgentCanJump = options.AgentCanJump ~= nil and options.AgentCanJump or PF.defaultOptions.AgentCanJump,
+        AgentCanClimb = options.AgentCanClimb ~= nil and options.AgentCanClimb or PF.defaultOptions.AgentCanClimb,
+        AgentMaxSlope = options.AgentMaxSlope or PF.defaultOptions.AgentMaxSlope,
+        WaypointSpacing = options.WaypointSpacing or PF.defaultOptions.WaypointSpacing,
+    }
+    
+    local path = PathfindingService:CreatePath(pathOptions)
     local success, err = pcall(function()
         path:ComputeAsync(startPos, endPos)
     end)
@@ -162,13 +186,32 @@ end
 -- CHECK IF PATH EXISTS
 -- ==========================================
 function PF.pathExists(startPos, endPos, options)
-    options = options or PF.defaultOptions
-    local path = PathfindingService:CreatePath(options)
+    -- Merge options with defaults
+    options = options or {}
+    local pathOptions = {
+        AgentRadius = options.AgentRadius or PF.defaultOptions.AgentRadius,
+        AgentHeight = options.AgentHeight or PF.defaultOptions.AgentHeight,
+        AgentCanJump = options.AgentCanJump ~= nil and options.AgentCanJump or PF.defaultOptions.AgentCanJump,
+        AgentCanClimb = options.AgentCanClimb ~= nil and options.AgentCanClimb or PF.defaultOptions.AgentCanClimb,
+        AgentMaxSlope = options.AgentMaxSlope or PF.defaultOptions.AgentMaxSlope,
+        WaypointSpacing = options.WaypointSpacing or PF.defaultOptions.WaypointSpacing,
+    }
+    
+    local path = PathfindingService:CreatePath(pathOptions)
     local success, err = pcall(function()
         path:ComputeAsync(startPos, endPos)
     end)
     
     return success and path.Status == Enum.PathStatus.Success
+end
+
+-- ==========================================
+-- ENABLE CLIMBING ON HUMANOD
+-- ==========================================
+function PF.enableClimbing(humanoid)
+    if humanoid then
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+    end
 end
 
 return PF
