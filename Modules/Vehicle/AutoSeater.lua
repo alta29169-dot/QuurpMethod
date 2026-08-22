@@ -1,4 +1,4 @@
--- AutoSeater.lua – Movement and Seating
+-- AutoSeater.lua – Movement and Seating (with Pathfinding)
 -- Handles walking to positions and sitting in bombers
 
 local Players = game:GetService("Players")
@@ -8,11 +8,12 @@ local StateManager = _G._Modules.StateManager
 local AirportManager = _G._Modules.AirportManager
 local BomberManager = _G._Modules.BomberManager
 local Debug = _G._Modules.Debug
+local PathfindingUtils = _G._Modules.PathfindingUtils  -- ADD THIS
 
 local AutoSeater = {}
 
 -- ==========================================
--- WALK TO POSITION
+-- WALK TO POSITION (with Pathfinding)
 -- ==========================================
 function AutoSeater.walkToPosition(targetPosition, tolerance)
     tolerance = tolerance or 5
@@ -23,26 +24,43 @@ function AutoSeater.walkToPosition(targetPosition, tolerance)
         return false
     end
     
-    local humanoid = character:FindFirstChild("Humanoid")
     local hrp = character:FindFirstChild("HumanoidRootPart")
-    
-    if not humanoid or not hrp then
-        Debug.warn("AutoSeater", "Missing humanoid or HRP")
+    if not hrp then
+        Debug.warn("AutoSeater", "No HRP")
         return false
     end
     
     -- Check if we're close enough
     local distance = (targetPosition - hrp.Position).Magnitude
     if distance <= tolerance then
-        Debug.info("AutoSeater", "Arrived at target")
+        Debug.info("AutoSeater", "Already at target")
         return true
     end
     
-    -- Move toward target
+    -- Use pathfinding
     Debug.info("AutoSeater", string.format("Walking to target (%.2f studs away)", distance))
-    humanoid:MoveTo(targetPosition)
     
-    return false
+    -- Abort check function (checks if we should stop moving)
+    local function abortCheck()
+        -- Stop if we die, respawn, or generation changes
+        if not player.Character then
+            return true
+        end
+        if not StateManager.get("isAlive") then
+            return true
+        end
+        return false
+    end
+    
+    local success = PathfindingUtils.moveTo(character, targetPosition, nil, abortCheck)
+    
+    if success then
+        Debug.info("AutoSeater", "Arrived at target!")
+        return true
+    else
+        Debug.warn("AutoSeater", "Failed to reach target")
+        return false
+    end
 end
 
 -- ==========================================
@@ -120,7 +138,9 @@ function AutoSeater.trySitInBomber(bomber)
     -- Check if we're close enough to sit
     local distance = (bomberHrp.Position - hrp.Position).Magnitude
     if distance > 10 then
-        Debug.info("AutoSeater", string.format("Too far to sit (%.2f studs)", distance))
+        Debug.info("AutoSeater", string.format("Too far to sit (%.2f studs), walking closer...", distance))
+        -- Walk closer first
+        AutoSeater.walkToPosition(bomberHrp.Position)
         return false
     end
     
