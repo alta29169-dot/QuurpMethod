@@ -1,5 +1,5 @@
 -- Main.lua – qurp v3 (Phase 1)
--- I love you Azzy
+-- I love you Ashy
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -10,8 +10,83 @@ local DockLocator = _G._Modules.DockLocator
 local HarbourTeleporter = _G._Modules.HarbourTeleporter
 local AirportManager = _G._Modules.AirportManager
 local AutoSeater = _G._Modules.AutoSeater
+local BomberManager = _G._Modules.BomberManager
 
 local isRunning = true
+
+-- ==========================================
+-- HEARTBEAT LOOP
+-- ==========================================
+local function heartbeat()
+    Debug.info("Main", "Heartbeat started")
+    
+    while isRunning do
+        task.wait(1.5)  -- Check every 1.5 seconds
+        
+        -- Check if we're alive
+        if not player.Character then
+            Debug.info("Main", "Waiting for character...")
+            continue
+        end
+        
+        -- Update our plane status
+        local myBomber = BomberManager.updatePlaneState()
+        
+        if not StateManager.get("hasPlane") then
+            -- No plane → walk to airport and spawn
+            Debug.info("Main", "No plane found, walking to airport")
+            
+            local character = player.Character
+            if character then
+                local airport = AirportManager.getNearestAirport(character)
+                if airport then
+                    -- Walk to airport
+                    local arrived = AutoSeater.walkToPosition(airport.Position)
+                    
+                    if arrived then
+                        -- Spawn bomber
+                        Debug.info("Main", "At airport, spawning bomber...")
+                        BomberManager.spawnBomber(airport)
+                    end
+                else
+                    Debug.warn("Main", "No airport found!")
+                end
+            end
+            
+        elseif not StateManager.get("seated") then
+            -- Have plane but not seated → walk and sit
+            Debug.info("Main", "Have plane but not seated")
+            
+            local plane = StateManager.get("targetVehicle")
+            if plane then
+                -- Walk to bomber
+                local arrived = AutoSeater.walkToBomber(plane)
+                
+                if arrived then
+                    -- Try to sit
+                    Debug.info("Main", "At bomber, trying to sit...")
+                    AutoSeater.trySitInBomber(plane)
+                end
+            else
+                Debug.warn("Main", "targetVehicle is nil but hasPlane is true!")
+                -- Force state reset
+                StateManager.set("hasPlane", false)
+            end
+            
+        else
+            -- We're seated in our plane
+            -- TODO: Combat logic
+            Debug.info("Main", "Seated and ready for combat!")
+            
+            -- Check if we're still in the plane
+            local occupant = BomberManager.getBomberOccupant(myBomber)
+            if occupant ~= player.Name then
+                Debug.warn("Main", "We lost our seat!")
+                StateManager.set("seated", false)
+            end
+        end
+    end
+end
 
 -- ==========================================
 -- ON RESPAWN
@@ -77,22 +152,20 @@ local function onRespawn(char)
     print("[Main] Airport cache has " .. (#cache or 0) .. " airports")
     Debug.info("Main", "Airport cache has " .. (#cache or 0) .. " airports")
 
-    -- Start AutoSeater (runs in background until death)
-    print("[Main] Calling AutoSeater.start with gen " .. myGen)
-    Debug.info("Main", "Calling AutoSeater.start with gen " .. myGen)
-
-    -- Safety check before calling AutoSeater
-    if AutoSeater and AutoSeater.start then
-        print("[Main] ✅ AutoSeater exists, calling start...")
-        AutoSeater.start(myGen)
-        print("[Main] AutoSeater.start returned")
+    -- Update plane state after respawn
+    BomberManager.updatePlaneState()
+    
+    -- Start heartbeat if not already running
+    if not _G._heartbeatRunning then
+        _G._heartbeatRunning = true
+        task.spawn(heartbeat)
+        print("[Main] Heartbeat started")
     else
-        print("[Main] ❌ AutoSeater or AutoSeater.start is nil!")
-        Debug.warn("Main", "AutoSeater not available!")
+        print("[Main] Heartbeat already running")
     end
 
-    Debug.info("Main", "AutoSeater started")
-    print("[Main] AutoSeater started")
+    Debug.info("Main", "Respawn complete")
+    print("[Main] Respawn complete")
 end
 
 -- ==========================================
