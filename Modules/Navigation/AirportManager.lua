@@ -1,66 +1,47 @@
---[[
-    AirportManager.lua – qurp v3
-    Handles: Caching airports and finding the nearest one
-]]
-
+-- AirportManager.lua
 local Workspace = game:GetService("Workspace")
+local StateManager = _G._Modules.StateManager
+local DockLocator = _G._Modules.DockLocator
 
--- ===== STATE =====
-local airportCache = {}
-
--- ==========================================
--- CACHE AIRPORTS
--- ==========================================
 local function cacheAirports(myGen)
-    local DockLocator = _G._Modules.DockLocator
-    local StateManager = _G._Modules.StateManager
-    
-    airportCache = {}
-    local dock = DockLocator.getDock()
-    
-    if not dock then
-        print("[AirportManager] Could not find dock.")
-        return false
+    -- Check StateManager first
+    if StateManager.get("airportsCached") then
+        print("[AirportManager] Already cached for this generation")
+        return true
     end
+    
+    local dock = DockLocator.getDock()
+    if not dock then return false end
     
     local vehicleSP = dock:FindFirstChild("VehicleSP")
-    if not vehicleSP then
-        print("[AirportManager] No VehicleSP found.")
-        return false
-    end
+    if not vehicleSP then return false end
     
+    local cache = {}
     for _, child in ipairs(vehicleSP:GetChildren()) do
         if child.Name == "Airport" then
-            table.insert(airportCache, child)
+            table.insert(cache, child)
         end
     end
     
-    -- Use StateManager instead of _G._currentGen
-    if myGen and StateManager and StateManager.getGeneration() ~= myGen then
-        return false
-    end
+    -- ✅ Store in StateManager
+    StateManager.set("airportCache", cache)
+    StateManager.set("airportsCached", true)
     
-    print("[AirportManager] Cached", #airportCache, "airports.")
-    return #airportCache > 0
+    print("[AirportManager] Cached", #cache, "airports.")
+    return #cache > 0
 end
 
--- ==========================================
--- GET NEAREST AIRPORT
--- ==========================================
-local function getNearestAirport(playerChar, myGen)
-    local StateManager = _G._Modules.StateManager
+local function getNearestAirport(playerChar)
+    local cache = StateManager.get("airportCache")
+    if not cache or #cache == 0 then return nil end
     
-    if not playerChar or (myGen and StateManager and StateManager.getGeneration() ~= myGen) then
-        return nil
-    end
-    
-    local hrp = playerChar:FindFirstChild("HumanoidRootPart")
+    local hrp = playerChar and playerChar:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
     
     local nearest = nil
     local nearestDist = math.huge
     
-    for _, airport in ipairs(airportCache) do
+    for _, airport in ipairs(cache) do
         if airport:IsA("BasePart") then
             local dist = (airport.Position - hrp.Position).Magnitude
             if dist < nearestDist then
