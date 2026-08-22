@@ -8,6 +8,7 @@ local Debug = _G._Modules.Debug
 local StateManager = _G._Modules.StateManager
 local DockLocator = _G._Modules.DockLocator
 local HarbourTeleporter = _G._Modules.HarbourTeleporter
+local AirportManager = _G._Modules.AirportManager
 
 -- ===== STATE =====
 local isRunning = true
