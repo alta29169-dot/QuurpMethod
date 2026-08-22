@@ -1,5 +1,4 @@
--- PathfindingUtils.lua – qurp v3 (Fixed)
--- No dependency on StateManager needed (keep it pure)
+-- PathfindingUtils.lua – Fixed Waypoint Following Love Love All The Way
 
 local PathfindingService = game:GetService("PathfindingService")
 
@@ -45,7 +44,7 @@ function PF.moveTo(character, targetPos, options, abortCheck)
     local lastWaypointIndex = #waypoints
     
     for i, waypoint in ipairs(waypoints) do
-        -- Check abort condition (e.g., death, respawn, gen mismatch)
+        -- Check abort condition
         if abortCheck and abortCheck() then
             return false
         end
@@ -56,30 +55,64 @@ function PF.moveTo(character, targetPos, options, abortCheck)
             humanoid:MoveTo(waypoint.Position) -- Double call for final destination
         end
         
-        -- Wait until we reach the waypoint or get interrupted
-        local reached = false
-        local timeout = 0
-        local dist = math.huge
+        -- === FIXED: Better waypoint detection ===
+        local startPos = hrp.Position
+        local dist = (startPos - waypoint.Position).Magnitude
+        local stuckCheck = 0
+        local lastDist = dist
+        local stuckCount = 0
         
-        while not reached and timeout < 50 do
-            timeout = timeout + 1
-            task.wait(0.1)
+        -- If we're already close enough, skip this waypoint
+        if dist < 4 then
+            continue
+        end
+        
+        -- Wait for waypoint with better logic
+        while dist > 4 do
+            task.wait(0.2)
             
-            -- Check if we're close enough
-            local currentPos = hrp.Position
-            dist = (currentPos - waypoint.Position).Magnitude
-            
-            -- For last waypoint, use 3 studs tolerance
-            if dist < 3 then
-                reached = true
-                break
-            end
-            
-            -- Check abort condition mid-way
+            -- Check abort
             if abortCheck and abortCheck() then
                 return false
             end
+            
+            -- Update distance
+            local currentPos = hrp.Position
+            dist = (currentPos - waypoint.Position).Magnitude
+            
+            -- Check if we're moving toward the waypoint
+            local progress = (startPos - currentPos).Magnitude
+            if progress > 2 then
+                -- We've moved at least 2 studs from start position
+                -- Update start position for next check
+                startPos = currentPos
+                stuckCount = 0
+            else
+                -- Not moving much
+                stuckCount = stuckCount + 1
+                if stuckCount > 15 then -- Stuck for 3 seconds (15 * 0.2)
+                    print("[PathfindingUtils] Stuck, skipping to next waypoint")
+                    break
+                end
+            end
+            
+            -- Safety timeout: if we've been trying for too long
+            if stuckCount > 30 then
+                print("[PathfindingUtils] Timeout, skipping waypoint")
+                break
+            end
         end
+        
+        -- If we broke out early due to stuck/timeout, move to next waypoint
+    end
+    
+    -- Final check: Are we at the target?
+    local finalDist = (hrp.Position - targetPos).Magnitude
+    if finalDist > 10 then
+        -- Try direct move if still far
+        humanoid:MoveTo(targetPos)
+        humanoid:MoveTo(targetPos)
+        task.wait(2)
     end
     
     return true
