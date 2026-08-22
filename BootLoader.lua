@@ -1,5 +1,5 @@
 -- ============================================================
---  BootLoader.lua  (QuurpMethod – Phase 1)
+--  BootLoader.lua  (Phase 1 — Only existing modules)
 -- ============================================================
 
 local GITHUB_USER   = "alta29169-dot"
@@ -7,13 +7,14 @@ local GITHUB_REPO   = "QuurpMethod"
 local GITHUB_BRANCH = "main"
 local MODULES_PATH  = "Modules"
 
--- ---------- MODULE LIST ----------
+-- ---------- ONLY MODULES THAT EXIST ----------
 local MODULE_NAMES = {
     "Debug",
     "StateManager",
     "DockLocator",
     "HarbourTeleporter",
     "AirportManager",
+    "AutoSeater",
     "Main",
 }
 
@@ -33,6 +34,8 @@ local function fetchModule(name, retries)
         folder = "Infrastructure"
     elseif name == "DockLocator" or name == "HarbourTeleporter" or name == "AirportManager" then
         folder = "Navigation"
+    elseif name == "AutoSeater" then
+        folder = "Vehicle"
     end
     
     local url = string.format(
