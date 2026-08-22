@@ -1,4 +1,4 @@
--- Main.lua – Phase 1 (With AutoSeater)
+-- Main.lua – Phase 1 (Test Version with Teleport + AirportManager)
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -8,14 +8,15 @@ local StateManager = _G._Modules.StateManager
 local DockLocator = _G._Modules.DockLocator
 local HarbourTeleporter = _G._Modules.HarbourTeleporter
 local AirportManager = _G._Modules.AirportManager
-local AutoSeater = _G._Modules.AutoSeater
 
+-- ===== STATE =====
 local isRunning = true
 
 -- ==========================================
 -- ON RESPAWN
 -- ==========================================
 local function onRespawn(char)
+    -- Debounce
     if not StateManager:canRespawn() then
         Debug.warn("Main", "Duplicate respawn ignored")
         return
@@ -25,9 +26,8 @@ local function onRespawn(char)
     Debug.info("Main", "=== RESPAWN DETECTED (gen " .. myGen .. ") ===")
     
     StateManager.resetAll()
-    StateManager.set("isAlive", true)
     
-    -- Wait for character
+    -- Wait for character to load
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local waitCount = 0
     while not hrp and waitCount < 50 do
@@ -41,37 +41,58 @@ local function onRespawn(char)
         return
     end
     
-    Debug.info("Main", "Character loaded")
+    Debug.info("Main", "Character loaded after " .. waitCount .. " checks")
     StateManager.set("characterLoaded", true)
+    StateManager.set("isAlive", true)
     
-    -- Teleport to harbour
-    local teleportSuccess = HarbourTeleporter.teleportToHarbour(myGen)
-    if not teleportSuccess then
-        Debug.warn("Main", "Teleport failed — retrying on next spawn")
-        return
+    -- ===== TEST: TELEPORT TO HARBOUR =====
+    Debug.info("Main", "Testing HarbourTeleporter...")
+    
+    local dock = DockLocator.getDock()
+    if dock then
+        Debug.info("Main", "Dock found: " .. dock.Name)
+    else
+        Debug.warn("Main", "No dock found!")
     end
     
-    Debug.info("Main", "Teleport successful")
+    local teleportSuccess = HarbourTeleporter.teleportToHarbour(myGen)
+    if teleportSuccess then
+        Debug.info("Main", "✅ Teleport successful!")
+        
+        -- ===== TEST: CACHE AIRPORTS =====
+        Debug.info("Main", "Testing AirportManager...")
+        local cacheSuccess = AirportManager.cacheAirports(myGen)
+        if cacheSuccess then
+            local airport = AirportManager.getNearestAirport(player.Character, myGen)
+            if airport then
+                Debug.info("Main", "✅ Nearest airport found at:", airport.Position)
+            else
+                Debug.warn("Main", "❌ No airports found after caching!")
+            end
+        else
+            Debug.warn("Main", "❌ Airport cache failed!")
+        end
+    else
+        Debug.warn("Main", "❌ Teleport failed!")
+    end
     
-    -- Cache airports
-    AirportManager.cacheAirports(myGen)
-    
-    -- Start AutoSeater (runs in background)
-    AutoSeater.start(myGen)
-    
-    Debug.info("Main", "AutoSeater started — monitoring plane status")
+    Debug.info("Main", "✅ Respawn + Teleport + Airport test complete.")
 end
 
 -- ==========================================
 -- START
 -- ==========================================
 local function start()
-    Debug.info("Main", "=== qurp v3 Engine Starting ===")
+    Debug.info("Main", "=== qurp v3 Engine Starting (Test Mode) ===")
     
     player.CharacterAdded:Connect(onRespawn)
+    Debug.info("Main", "CharacterAdded connected")
     
     if player.Character then
+        Debug.info("Main", "Initial character found — triggering respawn")
         task.spawn(onRespawn, player.Character)
+    else
+        Debug.info("Main", "No character yet — waiting for spawn")
     end
     
     while isRunning do
