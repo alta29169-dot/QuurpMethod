@@ -22,11 +22,9 @@ local function onRespawn(char)
         return
     end
     
-    -- Increment generation
     local myGen = StateManager:nextGeneration()
     Debug.info("Main", "=== RESPAWN DETECTED (gen " .. myGen .. ") ===")
     
-    -- Reset all states
     StateManager.resetAll()
     
     -- Wait for character to load
@@ -59,12 +57,26 @@ local function onRespawn(char)
     
     local teleportSuccess = HarbourTeleporter.teleportToHarbour(myGen)
     if teleportSuccess then
-        Debug.info("Main", "✅ Teleport successful!")
+        Debug.info("Main", "Teleport successful!")
+        
+        -- TEST: CACHE AIRPORTS
+        Debug.info("Main", "Testing AirportManager...")
+        local cacheSuccess = AirportManager.cacheAirports(myGen)
+        if cacheSuccess then
+            local airport = AirportManager.getNearestAirport(player.Character, myGen)
+            if airport then
+                Debug.info("Main", "Nearest airport found at:", airport.Position)
+            else
+                Debug.warn("Main", "No airports found after caching!")
+            end
+        else
+            Debug.warn("Main", "Airport cache failed!")
+        end
     else
-        Debug.warn("Main", "❌ Teleport failed!")
+        Debug.warn("Main", "Teleport failed!")
     end
     
-    Debug.info("Main", "✅ Respawn + Teleport test complete.")
+    Debug.info("Main", "Respawn + Teleport + Airport test complete.")
 end
 
 -- ==========================================
