@@ -60,7 +60,12 @@ local function onRespawn(char)
     -- Cache airports (once per respawn)
     AirportManager.cacheAirports(myGen)
 
+    -- Debug: Check cache
+    local cache = StateManager.get("airportCache")
+    Debug.info("Main", "Airport cache has " .. (#cache or 0) .. " airports")
+
     -- Start AutoSeater (runs in background until death)
+    Debug.info("Main", "Calling AutoSeater.start with gen " .. myGen)
     AutoSeater.start(myGen)
 
     Debug.info("Main", "AutoSeater started")
