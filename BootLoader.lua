@@ -11,9 +11,11 @@ local MODULES_PATH  = "Modules"
 
 -- ---------- ONLY MODULES THAT EXIST ----------
 local MODULE_NAMES = {
-    "Debug",          -- Utilities/Debug.lua
-    "StateManager",   -- Utilities/StateManager.lua
-    "Main",           -- Infrastructure/Main.lua
+    "Debug",            -- Utilities/Debug.lua
+    "StateManager",     -- Utilities/StateManager.lua
+    "DockLocator",      -- Navigation/DockLocator.lua
+    "HarbourTeleporter",-- Navigation/HarbourTeleporter.lua
+    "Main",             -- Infrastructure/Main.lua
 }
 
 -- ---------- LOADER ----------
@@ -31,6 +33,8 @@ local function fetchModule(name, retries)
     local folder = "Utilities"
     if name == "Main" then
         folder = "Infrastructure"
+    elseif name == "DockLocator" or name == "HarbourTeleporter" then
+        folder = "Navigation"
     end
     
     local url = string.format(
