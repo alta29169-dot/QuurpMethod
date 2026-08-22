@@ -17,21 +17,27 @@ local isRunning = true
 -- ON RESPAWN
 -- ==========================================
 local function onRespawn(char)
+    print("[Main] 🔥 ON RESPAWN FIRED!")
+    
     -- Debounce
     if not StateManager:canRespawn() then
         Debug.warn("Main", "Duplicate respawn ignored")
+        print("[Main] Duplicate respawn ignored")
         return
     end
 
     local myGen = StateManager:nextGeneration()
     Debug.info("Main", "=== RESPAWN DETECTED (gen " .. myGen .. ") ===")
+    print("[Main] === RESPAWN DETECTED (gen " .. myGen .. ") ===")
 
     -- Reset all state
     StateManager.resetAll()
     StateManager.set("isAlive", true)
     StateManager.set("generation", myGen)
+    print("[Main] State reset")
 
     -- Wait for character
+    print("[Main] Waiting for HRP...")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local waitCount = 0
     while not hrp and waitCount < 50 do
@@ -42,33 +48,51 @@ local function onRespawn(char)
 
     if not hrp then
         Debug.warn("Main", "HRP never loaded")
+        print("[Main] ❌ HRP never loaded!")
         return
     end
 
+    print("[Main] ✅ HRP found!")
     Debug.info("Main", "Character loaded")
     StateManager.set("characterLoaded", true)
 
     -- Teleport to harbour
+    print("[Main] Teleporting to harbour...")
     local teleportSuccess = HarbourTeleporter.teleportToHarbour(myGen)
     if not teleportSuccess then
         Debug.warn("Main", "Teleport failed — retrying on next spawn")
+        print("[Main] ❌ Teleport failed!")
         return
     end
 
+    print("[Main] ✅ Teleport successful!")
     Debug.info("Main", "Teleport successful")
 
     -- Cache airports (once per respawn)
+    print("[Main] Caching airports...")
     AirportManager.cacheAirports(myGen)
 
     -- Debug: Check cache
     local cache = StateManager.get("airportCache")
+    print("[Main] Airport cache has " .. (#cache or 0) .. " airports")
     Debug.info("Main", "Airport cache has " .. (#cache or 0) .. " airports")
 
     -- Start AutoSeater (runs in background until death)
+    print("[Main] Calling AutoSeater.start with gen " .. myGen)
     Debug.info("Main", "Calling AutoSeater.start with gen " .. myGen)
-    AutoSeater.start(myGen)
+
+    -- Safety check before calling AutoSeater
+    if AutoSeater and AutoSeater.start then
+        print("[Main] ✅ AutoSeater exists, calling start...")
+        AutoSeater.start(myGen)
+        print("[Main] AutoSeater.start returned")
+    else
+        print("[Main] ❌ AutoSeater or AutoSeater.start is nil!")
+        Debug.warn("Main", "AutoSeater not available!")
+    end
 
     Debug.info("Main", "AutoSeater started")
+    print("[Main] AutoSeater started")
 end
 
 -- ==========================================
@@ -76,14 +100,18 @@ end
 -- ==========================================
 local function start()
     Debug.info("Main", "=== qurp v3 Engine Starting ===")
+    print("[Main] === qurp v3 Engine Starting ===")
 
     -- Connect respawn handler
     player.CharacterAdded:Connect(onRespawn)
+    print("[Main] Respawn handler connected")
 
     -- Handle initial spawn
     if player.Character then
+        print("[Main] Initial character found, spawning onRespawn...")
         task.spawn(onRespawn, player.Character)
     else
+        print("[Main] No character yet — waiting for spawn")
         Debug.info("Main", "No character yet — waiting for spawn")
     end
 
