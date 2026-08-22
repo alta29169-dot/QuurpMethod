@@ -14,6 +14,7 @@ local MODULE_NAMES = {
     "DockLocator",
     "HarbourTeleporter",
     "AirportManager",
+    "PathfindingUtils",
     "BomberManager",
     "AutoSeater",
     "Main",
@@ -35,10 +36,10 @@ local function fetchModule(name, retries)
         folder = "Infrastructure"
     elseif name == "DockLocator" or name == "HarbourTeleporter" or name == "AirportManager" then
         folder = "Navigation"
-    elseif name == "AutoSeater" then
+    elseif name == "AutoSeater" or name == "BomberManager" then
         folder = "Vehicle"
-    elseif name == "BomberManager" then  -- ADDED
-        folder = "Vehicle"               -- ADDED
+    elseif name == "PathfindingUtils" then  -- ADD THIS
+        folder = "Utilities"
     end
     
     local url = string.format(
