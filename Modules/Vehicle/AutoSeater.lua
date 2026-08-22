@@ -1,6 +1,8 @@
 -- AutoSeater.lua – Phase 1 (Bare-Bones)
 -- Just reads the cached airport from StateManager and prints it.
 
+print("[AutoSeater] Module loaded!")
+
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
