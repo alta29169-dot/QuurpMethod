@@ -1,21 +1,20 @@
 -- ============================================================
 --  BootLoader.lua  (QuurpMethod – Phase 1)
---  Loads only the modules that exist.
 -- ============================================================
 
--- ---------- CONFIG ----------
 local GITHUB_USER   = "alta29169-dot"
 local GITHUB_REPO   = "QuurpMethod"
 local GITHUB_BRANCH = "main"
 local MODULES_PATH  = "Modules"
 
--- ---------- ONLY MODULES THAT EXIST ----------
+-- ---------- MODULE LIST ----------
 local MODULE_NAMES = {
-    "Debug",            -- Utilities/Debug.lua
-    "StateManager",     -- Utilities/StateManager.lua
-    "DockLocator",      -- Navigation/DockLocator.lua
-    "HarbourTeleporter",-- Navigation/HarbourTeleporter.lua
-    "Main",             -- Infrastructure/Main.lua
+    "Debug",
+    "StateManager",
+    "DockLocator",
+    "HarbourTeleporter",
+    "AirportManager",   
+    "Main",
 }
 
 -- ---------- LOADER ----------
@@ -29,11 +28,10 @@ _G._Modules = _G._Modules or {}
 local function fetchModule(name, retries)
     retries = retries or 3
     
-    -- Determine which folder the module is in
     local folder = "Utilities"
     if name == "Main" then
         folder = "Infrastructure"
-    elseif name == "DockLocator" or name == "HarbourTeleporter" then
+    elseif name == "DockLocator" or name == "HarbourTeleporter" or name == "AirportManager" then
         folder = "Navigation"
     end
     
