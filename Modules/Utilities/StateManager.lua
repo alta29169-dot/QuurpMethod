@@ -11,6 +11,9 @@ local state = {
     isPlaneAlive = false,
     generation = 0,
     isRunning = true,
+    enemyList = {},       
+    enemyCount = 0,      
+    lastEnemyUpdate = 0,  
 }
 
 -- ===== LOCKS (for race conditions) =====
@@ -81,6 +84,47 @@ function StateManager:canRespawn()
     end
     lastRespawnTime = now
     return true
+end
+
+-- ==========================================
+-- STATEMANAGER METHODS FOR ENEMY LIST
+-- ==========================================
+
+-- Add enemy to list (called by Main)
+function StateManager.addEnemy(enemyData)
+    if not enemyData or not enemyData.instance then return end
+    
+    local key = tostring(enemyData.instance)
+    state.enemyList[key] = enemyData
+    state.enemyCount = state.enemyCount + 1
+    
+    Debug.info("StateManager", "Added enemy: " .. key .. " (" .. enemyData.type .. ")")
+end
+
+-- Remove enemy from list (called by EnemyManager)
+function StateManager.removeEnemy(key)
+    if state.enemyList[key] then
+        state.enemyList[key] = nil
+        state.enemyCount = state.enemyCount - 1
+        Debug.info("StateManager", "Removed enemy: " .. key)
+    end
+end
+
+-- Get enemy list
+function StateManager.getEnemyList()
+    return state.enemyList
+end
+
+-- Get enemy count
+function StateManager.getEnemyCount()
+    return state.enemyCount
+end
+
+-- Clear all enemies (on respawn)
+function StateManager.clearEnemies()
+    state.enemyList = {}
+    state.enemyCount = 0
+    Debug.info("StateManager", "Cleared all enemies")
 end
 
 -- ==========================================
