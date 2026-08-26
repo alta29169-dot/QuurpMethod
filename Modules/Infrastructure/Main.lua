@@ -1,5 +1,5 @@
 -- Main.lua – qurp v3 (Phase 1)
--- I love you Ashy
+-- I love you Ashley
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -28,6 +28,8 @@ local function heartbeat()
             Debug.info("Main", "Waiting for character...")
             continue
         end
+
+        EnemyManager.update()  -- Scans for enemies and prints if debug is on
         
         -- Update our plane status
         local myBomber = BomberManager.updatePlaneState()
