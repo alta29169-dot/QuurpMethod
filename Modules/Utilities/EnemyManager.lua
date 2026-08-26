@@ -1,4 +1,4 @@
--- EnemyManager.lua – Enemy Detection and Tracking
+-- EnemyManager.lua – Enemy Detection and Tracking | Parsched
 
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
