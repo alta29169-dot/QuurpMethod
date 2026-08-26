@@ -1,5 +1,5 @@
 -- ============================================================
---  BootLoader.lua  (Phase 1 — Only existing modules) I love you
+--  BootLoader.lua  (Phase 1 — Only existing modules)
 -- ============================================================
 
 local GITHUB_USER   = "alta29169-dot"
@@ -15,7 +15,7 @@ local MODULE_NAMES = {
     "HarbourTeleporter",
     "AirportManager",
     "PathfindingUtils",
-    "EnemyManager",
+    "EnemyManager",      -- ADDED
     "BomberManager",
     "AutoSeater",
     "Main",
@@ -39,7 +39,7 @@ local function fetchModule(name, retries)
         folder = "Navigation"
     elseif name == "AutoSeater" or name == "BomberManager" then
         folder = "Vehicle"
-    elseif name == "PathfindingUtils" then  -- ADD THIS
+    elseif name == "PathfindingUtils" or name == "EnemyManager" then  -- ADDED
         folder = "Utilities"
     end
     
