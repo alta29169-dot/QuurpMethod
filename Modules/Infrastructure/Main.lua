@@ -11,6 +11,7 @@ local HarbourTeleporter = _G._Modules.HarbourTeleporter
 local AirportManager = _G._Modules.AirportManager
 local AutoSeater = _G._Modules.AutoSeater
 local BomberManager = _G._Modules.BomberManager
+local EnemyManager = _G._Modules.EnemyManager
 
 local isRunning = true
 
