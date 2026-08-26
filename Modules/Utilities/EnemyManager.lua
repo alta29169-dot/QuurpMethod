@@ -45,6 +45,13 @@ local function debugDetail(...)
 end
 
 -- ==========================================
+-- CLAMP HELPER
+-- ==========================================
+local function clamp(value, min, max)
+    return math.max(min, math.min(max, value))
+end
+
+-- ==========================================
 -- GET MY TEAM
 -- ==========================================
 function EnemyManager.getMyTeam()
@@ -61,7 +68,7 @@ function EnemyManager.getMyTeam()
     end
     
     -- Default
-    return "USA"  -- or "Japan" depending on game default
+    return "USA"
 end
 
 -- ==========================================
@@ -97,9 +104,10 @@ function EnemyManager.getPlaneData(plane)
         instance = plane,
         type = plane.Name,
         position = position,
-        altitude = position.Y,  -- Y-value relative to world spawn (0,0,0)
+        altitude = position.Y,
         cframe = mainBody.CFrame,
         mainBody = mainBody,
+        velocity = mainBody.AssemblyLinearVelocity or Vector3.new(0,0,0),
         health = hp and hp.Value or 0,
         team = team and team.Value or "Unknown",
         owner = owner and owner.Value or "",
@@ -167,14 +175,12 @@ function EnemyManager.scan(scanRange)
         
         -- Skip if dead
         if not data.isAlive then 
-            debugDetail("Skipping dead enemy:", plane.Name)
-            continue 
+            continue
         end
         
         -- Check distance
         local distance = (data.position - myPosition).Magnitude
         if distance > scanRange then
-            debugDetail("Enemy out of range:", plane.Name, "distance:", math.floor(distance), ">", scanRange)
             continue
         end
         
@@ -321,6 +327,90 @@ function EnemyManager.getEnemyFacing(enemyData)
 end
 
 -- ==========================================
+-- GET OBSERVATION (for RL)
+-- ==========================================
+function EnemyManager.getObservation()
+    local obs = {
+        -- Default values
+        health = 0,
+        ammo = 0,
+        fuel = 0,
+        altitude = 0,
+        speed = 0,
+        enemyDistance = 0,
+        enemyBearing = 0,
+        enemyElevation = 0,
+        enemyHealth = 0,
+        enemyAltitude = 0,
+        enemySpeed = 0,
+        enemyFacingAngle = 0,
+        enemyIsBomber = 0,
+        enemyIsTorpedo = 0,
+        enemyIsLarge = 0,
+        isSeated = 0,
+        isAlive = 0,
+        enemiesInRange = 0,
+    }
+    
+    -- Get self state
+    local selfPos = EnemyManager.getMyPosition()
+    local selfVel = EnemyManager.getMyVelocity()
+    local plane = StateManager.get("targetVehicle")
+    local seated = StateManager.get("seated")
+    
+    if not selfPos then return obs end
+    
+    -- Self state
+    obs.altitude = selfPos.Y
+    obs.speed = selfVel.Magnitude
+    obs.isSeated = seated and 1 or 0
+    obs.isAlive = player.Character and 1 or 0
+    
+    -- Get plane data if we have one
+    if plane then
+        local hp = plane:FindFirstChild("HP")
+        local ammo = plane:FindFirstChild("Ammo")
+        local fuel = plane:FindFirstChild("Fuel")
+        
+        obs.health = hp and hp.Value / 100 or 0
+        obs.ammo = ammo and ammo.Value / 100 or 0
+        obs.fuel = fuel and fuel.Value / 100 or 0
+    end
+    
+    -- Get nearest enemy
+    local nearest = EnemyManager.getNearestEnemy()
+    if not nearest then return obs end
+    
+    -- Enemy distance (normalized)
+    obs.enemyDistance = clamp(nearest.distance / 2200, 0, 1)
+    obs.enemyBearing = clamp(nearest.bearing / 180, -1, 1)
+    obs.enemyElevation = clamp(nearest.elevation / 90, -1, 1)
+    obs.enemyHealth = clamp(nearest.health / 100, 0, 1)
+    obs.enemyAltitude = nearest.altitude
+    obs.enemySpeed = nearest.velocity and nearest.velocity.Magnitude or 0
+    
+    -- Enemy type (one-hot)
+    obs.enemyIsBomber = nearest.type == "Bomber" and 1 or 0
+    obs.enemyIsTorpedo = nearest.type == "TorpedoBomber" and 1 or 0
+    obs.enemyIsLarge = nearest.type == "LargeBomber" and 1 or 0
+    
+    -- Enemy facing angle (relative to us)
+    if nearest.lookAt then
+        local enemyFacing = EnemyManager.getEnemyFacing(nearest)
+        if enemyFacing then
+            local dirToEnemy = (nearest.position - selfPos).Unit
+            local facingAngle = math.deg(math.acos(enemyFacing:Dot(dirToEnemy)))
+            obs.enemyFacingAngle = clamp(facingAngle / 180, -1, 1)
+        end
+    end
+    
+    -- Enemies in range count
+    obs.enemiesInRange = #enemyCache
+    
+    return obs
+end
+
+-- ==========================================
 -- QUERY FUNCTIONS
 -- ==========================================
 
@@ -363,7 +453,7 @@ end
 
 -- Get enemies in a specific direction (for RL)
 function EnemyManager.getEnemiesInDirection(forwardVector, angleThreshold)
-    angleThreshold = angleThreshold or 45  -- degrees
+    angleThreshold = angleThreshold or 45
     
     local result = {}
     local myPos = EnemyManager.getMyPosition()
