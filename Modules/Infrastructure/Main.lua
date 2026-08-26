@@ -30,7 +30,11 @@ local function heartbeat()
             continue
         end
 
-        EnemyManager.update()  -- Scans for enemies and prints if debug is on
+        -- DISCOVERY: Find new enemies (ADD only)
+        local enemies = EnemyManager.scanForNewEnemies()
+        for _, enemy in ipairs(enemies) do
+            StateManager.addEnemy(enemy)
+        end
         
         -- Update our plane status
         local myBomber = BomberManager.updatePlaneState()
@@ -190,7 +194,10 @@ local function start()
         print("[Main] No character yet — waiting for spawn")
         Debug.info("Main", "No character yet — waiting for spawn")
     end
-
+    
+    task.spawn(EnemyManager.startTracking)
+    Debug.info("Main", "EnemyManager tracking started")
+    
     -- Keep the engine running FOREVER
     while isRunning do
         task.wait(1)
