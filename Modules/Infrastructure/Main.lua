@@ -92,7 +92,7 @@ end
 -- ON RESPAWN
 -- ==========================================
 local function onRespawn(char)
-    print("[Main] 🔥 ON RESPAWN FIRED!")
+    print("[Main] ON RESPAWN FIRED!")
     
     -- Debounce
     if not StateManager:canRespawn() then
@@ -123,11 +123,11 @@ local function onRespawn(char)
 
     if not hrp then
         Debug.warn("Main", "HRP never loaded")
-        print("[Main] ❌ HRP never loaded!")
+        print("[Main] HRP never loaded!")
         return
     end
 
-    print("[Main] ✅ HRP found!")
+    print("[Main] HRP found!")
     Debug.info("Main", "Character loaded")
     StateManager.set("characterLoaded", true)
 
@@ -136,11 +136,11 @@ local function onRespawn(char)
     local teleportSuccess = HarbourTeleporter.teleportToHarbour(myGen)
     if not teleportSuccess then
         Debug.warn("Main", "Teleport failed — retrying on next spawn")
-        print("[Main] ❌ Teleport failed!")
+        print("[Main] Teleport failed!")
         return
     end
 
-    print("[Main] ✅ Teleport successful!")
+    print("[Main] Teleport successful!")
     Debug.info("Main", "Teleport successful")
 
     -- Cache airports (once per respawn)
