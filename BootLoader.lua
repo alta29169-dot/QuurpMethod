@@ -15,6 +15,7 @@ local MODULE_NAMES = {
     "HarbourTeleporter",
     "AirportManager",
     "PathfindingUtils",
+    "EnemyManager",
     "BomberManager",
     "AutoSeater",
     "Main",
