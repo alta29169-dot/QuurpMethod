@@ -15,9 +15,10 @@ local MODULE_NAMES = {
     "HarbourTeleporter",
     "AirportManager",
     "PathfindingUtils",
-    "EnemyManager",      -- ADDED
+    "EnemyManager",
     "BomberManager",
     "AutoSeater",
+    "FlightController",  -- ADDED
     "Main",
 }
 
@@ -37,9 +38,9 @@ local function fetchModule(name, retries)
         folder = "Infrastructure"
     elseif name == "DockLocator" or name == "HarbourTeleporter" or name == "AirportManager" then
         folder = "Navigation"
-    elseif name == "AutoSeater" or name == "BomberManager" then
+    elseif name == "AutoSeater" or name == "BomberManager" or name == "FlightController" then
         folder = "Vehicle"
-    elseif name == "PathfindingUtils" or name == "EnemyManager" then  -- ADDED
+    elseif name == "PathfindingUtils" or name == "EnemyManager" then
         folder = "Utilities"
     end
     
