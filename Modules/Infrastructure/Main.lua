@@ -12,6 +12,8 @@ local AirportManager = _G._Modules.AirportManager
 local AutoSeater = _G._Modules.AutoSeater
 local BomberManager = _G._Modules.BomberManager
 local EnemyManager = _G._Modules.EnemyManager
+local FlightController = _G._Modules.FlightController
+local CombatBrain = _G._Modules.CombatBrain
 
 local isRunning = true
 
@@ -199,6 +201,10 @@ local function start()
     -- Start EnemyManager tracking loop (runs independently)
     task.spawn(EnemyManager.startTracking)
     print("[Main] EnemyManager tracking started")
+
+    -- Start FlightController
+    FlightController.start()
+    print("[Main] FlightController started")
 
     -- Keep the engine running FOREVER
     while isRunning do
