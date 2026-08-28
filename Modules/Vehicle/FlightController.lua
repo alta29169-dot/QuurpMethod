@@ -1,4 +1,4 @@
--- FlightController.lua – Plane Movement Control | I just want to love 
+-- FlightController.lua – Plane Movement Control | I just want to love
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -19,8 +19,7 @@ local DEBUG_FLIGHT = true
 -- ==========================================
 local SPEED = 115
 local MAX_TORQUE = 500000
-local MAX_FORCE = 30000
-local DAMPING = 0.8
+local MAX_FORCE = 100000
 local ARRIVAL_TOLERANCE = 5
 
 local RESPONSIVENESS = {
@@ -83,8 +82,7 @@ function FlightController.getPlaneParts()
         align.Attachment1 = att1
         align.CFrame = body.CFrame
         align.MaxTorque = MAX_TORQUE
-        align.Damping = DAMPING
-        align.Responsiveness = RESPONSIVENESS.cruise
+        align.Responsiveness = RESPONSIVENESS.cruise  -- FIXED: Damping → Responsiveness
         align.Enabled = true
         debugPrint("AlignOrientation created")
     end
@@ -178,18 +176,19 @@ function FlightController.update()
     if distance < ARRIVAL_TOLERANCE then
         debugPrint(string.format("Arrived at target (%.1f studs)", distance))
         isFlying = false
-        velocity.VectorVelocity = Vector3.new(0, 0, 0)  -- FIXED: Velocity → VectorVelocity
+        velocity.VectorVelocity = Vector3.new(0, 0, 0)
         return
     end
     
     local dirUnit = direction.Unit
     
+    -- Set rotation target
     local targetCFrame = CFrame.lookAt(currentPos, currentPos + dirUnit)
     align.CFrame = targetCFrame
     
     -- Move forward at fixed speed
     local forward = body.CFrame.LookVector
-    velocity.VectorVelocity = forward * SPEED  -- FIXED: Velocity → VectorVelocity
+    velocity.VectorVelocity = forward * SPEED
     
     if DEBUG_FLIGHT and math.floor(now) % 5 == 0 and math.floor(now) ~= math.floor(now - updateInterval) then
         debugPrint(string.format("Flying to target: %.0f studs away, mode: %s", distance, currentMode))
@@ -205,7 +204,7 @@ function FlightController.stop()
     
     local parts = FlightController.getPlaneParts()
     if parts and parts.velocity then
-        parts.velocity.VectorVelocity = Vector3.new(0, 0, 0)  -- FIXED: Velocity → VectorVelocity
+        parts.velocity.VectorVelocity = Vector3.new(0, 0, 0)
     end
     
     debugPrint("Stopped")
