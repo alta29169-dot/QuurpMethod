@@ -47,7 +47,42 @@ local function debugPrint(...)
 end
 
 -- ==========================================
--- GET PLANE PARTS
+-- CLEANUP LEGACY CONSTRAINTS
+-- ==========================================
+function FlightController.cleanupConstraints(body)
+    if not body then return end
+    
+    -- Remove legacy BodyVelocity
+    local bodyVel = body:FindFirstChild("BodyVelocity")
+    if bodyVel then
+        bodyVel:Destroy()
+        debugPrint("Removed legacy BodyVelocity")
+    end
+    
+    -- Remove legacy BodyGyro
+    local bodyGyro = body:FindFirstChild("BodyGyro")
+    if bodyGyro then
+        bodyGyro:Destroy()
+        debugPrint("Removed legacy BodyGyro")
+    end
+    
+    -- Remove any existing LinearVelocity (we'll recreate)
+    local linearVel = body:FindFirstChild("LinearVelocity")
+    if linearVel then
+        linearVel:Destroy()
+        debugPrint("Removed existing LinearVelocity")
+    end
+    
+    -- Remove any existing AlignOrientation (we'll recreate)
+    local align = body:FindFirstChild("AlignOrientation")
+    if align then
+        align:Destroy()
+        debugPrint("Removed existing AlignOrientation")
+    end
+end
+
+-- ==========================================
+-- GET PLANE PARTS (With Cleanup)
 -- ==========================================
 function FlightController.getPlaneParts()
     local plane = StateManager.get("targetVehicle")
@@ -62,42 +97,39 @@ function FlightController.getPlaneParts()
         return nil
     end
     
-    -- Get or create AlignOrientation
-    local align = body:FindFirstChild("AlignOrientation")
-    if not align then
-        debugPrint("Creating AlignOrientation...")
-        align = Instance.new("AlignOrientation")
-        align.Name = "AlignOrientation"
-        align.Parent = body
-        
-        local att0 = Instance.new("Attachment")
-        att0.Name = "AlignOrientation_Att0"
-        att0.Parent = body
-        
-        local att1 = Instance.new("Attachment")
-        att1.Name = "AlignOrientation_Att1"
-        att1.Parent = body
-        
-        align.Attachment0 = att0
-        align.Attachment1 = att1
-        align.CFrame = body.CFrame
-        align.MaxTorque = MAX_TORQUE
-        align.Responsiveness = RESPONSIVENESS.cruise  -- FIXED: Damping → Responsiveness
-        align.Enabled = true
-        debugPrint("AlignOrientation created")
-    end
+    -- CLEANUP: Remove all existing constraints first
+    FlightController.cleanupConstraints(body)
     
-    -- Get or create LinearVelocity
-    local velocity = body:FindFirstChild("LinearVelocity")
-    if not velocity then
-        debugPrint("Creating LinearVelocity...")
-        velocity = Instance.new("LinearVelocity")
-        velocity.Name = "LinearVelocity"
-        velocity.Parent = body
-        velocity.MaxForce = MAX_FORCE
-        velocity.Enabled = true
-        debugPrint("LinearVelocity created")
-    end
+    -- Create AlignOrientation
+    debugPrint("Creating AlignOrientation...")
+    local align = Instance.new("AlignOrientation")
+    align.Name = "AlignOrientation"
+    align.Parent = body
+    
+    local att0 = Instance.new("Attachment")
+    att0.Name = "AlignOrientation_Att0"
+    att0.Parent = body
+    
+    local att1 = Instance.new("Attachment")
+    att1.Name = "AlignOrientation_Att1"
+    att1.Parent = body
+    
+    align.Attachment0 = att0
+    align.Attachment1 = att1
+    align.CFrame = body.CFrame
+    align.MaxTorque = MAX_TORQUE
+    align.Responsiveness = RESPONSIVENESS.cruise
+    align.Enabled = true
+    debugPrint("AlignOrientation created")
+    
+    -- Create LinearVelocity
+    debugPrint("Creating LinearVelocity...")
+    local velocity = Instance.new("LinearVelocity")
+    velocity.Name = "LinearVelocity"
+    velocity.Parent = body
+    velocity.MaxForce = MAX_FORCE
+    velocity.Enabled = true
+    debugPrint("LinearVelocity created")
     
     return {
         plane = plane,
