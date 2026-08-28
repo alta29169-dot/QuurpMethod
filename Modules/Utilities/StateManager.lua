@@ -1,5 +1,17 @@
--- StateManager.lua
+-- StateManager.lua | looks like love
 local StateManager = {}
+
+-- Get Debug module safely
+local Debug = _G._Modules and _G._Modules.Debug
+
+-- Local safe print function
+local function safePrint(...)
+    if Debug and Debug.info then
+        Debug.info("StateManager", ...)
+    else
+        print("[StateManager]", ...)
+    end
+end
 
 -- ===== STATE =====
 local state = {
@@ -98,7 +110,7 @@ function StateManager.addEnemy(enemyData)
     state.enemyList[key] = enemyData
     state.enemyCount = state.enemyCount + 1
     
-    Debug.info("StateManager", "Added enemy: " .. key .. " (" .. enemyData.type .. ")")
+    safePrint("Added enemy: " .. key .. " (" .. enemyData.type .. ")")
 end
 
 -- Remove enemy from list (called by EnemyManager)
@@ -106,7 +118,7 @@ function StateManager.removeEnemy(key)
     if state.enemyList[key] then
         state.enemyList[key] = nil
         state.enemyCount = state.enemyCount - 1
-        Debug.info("StateManager", "Removed enemy: " .. key)
+        safePrint("Removed enemy: " .. key)
     end
 end
 
@@ -124,7 +136,7 @@ end
 function StateManager.clearEnemies()
     state.enemyList = {}
     state.enemyCount = 0
-    Debug.info("StateManager", "Cleared all enemies")
+    safePrint("Cleared all enemies")
 end
 
 -- ==========================================
