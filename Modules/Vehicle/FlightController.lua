@@ -1,4 +1,4 @@
--- FlightController.lua – Plane Movement Control | I just want to love
+-- FlightController.lua – Plane Movement Controls | I just want to love
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -36,6 +36,7 @@ local currentMode = "cruise"
 local isFlying = false
 local lastUpdate = 0
 local updateInterval = 0.1
+local constraintsInitialized = false  -- Track if we've already set up constraints
 
 -- ==========================================
 -- DEBUG
@@ -47,7 +48,7 @@ local function debugPrint(...)
 end
 
 -- ==========================================
--- CLEANUP LEGACY CONSTRAINTS
+-- CLEANUP LEGACY CONSTRAINTS (ONLY ONCE)
 -- ==========================================
 function FlightController.cleanupConstraints(body)
     if not body then return end
@@ -82,22 +83,31 @@ function FlightController.cleanupConstraints(body)
 end
 
 -- ==========================================
--- GET PLANE PARTS (With Cleanup)
+-- INITIALIZE CONSTRAINTS (ONLY ONCE)
 -- ==========================================
-function FlightController.getPlaneParts()
+function FlightController.initializeConstraints()
     local plane = StateManager.get("targetVehicle")
     if not plane then
         debugPrint("No plane in StateManager")
-        return nil
+        return false
     end
     
     local body = plane:FindFirstChild("MainBody")
     if not body then
         debugPrint("No MainBody found in plane")
-        return nil
+        return false
     end
     
-    -- CLEANUP: Remove all existing constraints first
+    -- Check if we already have our constraints
+    local existingAlign = body:FindFirstChild("AlignOrientation")
+    local existingVelocity = body:FindFirstChild("LinearVelocity")
+    
+    if existingAlign and existingVelocity then
+        debugPrint("Constraints already initialized, skipping")
+        return true
+    end
+    
+    -- CLEANUP: Remove all existing constraints (only once)
     FlightController.cleanupConstraints(body)
     
     -- Create AlignOrientation
@@ -130,6 +140,38 @@ function FlightController.getPlaneParts()
     velocity.MaxForce = MAX_FORCE
     velocity.Enabled = true
     debugPrint("LinearVelocity created")
+    
+    constraintsInitialized = true
+    return true
+end
+
+-- ==========================================
+-- GET PLANE PARTS (No cleanup, just get)
+-- ==========================================
+function FlightController.getPlaneParts()
+    local plane = StateManager.get("targetVehicle")
+    if not plane then
+        return nil
+    end
+    
+    local body = plane:FindFirstChild("MainBody")
+    if not body then
+        return nil
+    end
+    
+    local align = body:FindFirstChild("AlignOrientation")
+    local velocity = body:FindFirstChild("LinearVelocity")
+    
+    if not align or not velocity then
+        debugPrint("Missing constraints, reinitializing...")
+        FlightController.initializeConstraints()
+        -- Try again
+        align = body:FindFirstChild("AlignOrientation")
+        velocity = body:FindFirstChild("LinearVelocity")
+        if not align or not velocity then
+            return nil
+        end
+    end
     
     return {
         plane = plane,
