@@ -194,10 +194,11 @@ local function start()
         print("[Main] No character yet — waiting for spawn")
         Debug.info("Main", "No character yet — waiting for spawn")
     end
-    
+
+    -- Start EnemyManager tracking loop (runs independently)
     task.spawn(EnemyManager.startTracking)
-    Debug.info("Main", "EnemyManager tracking started")
-    
+    print("[Main] EnemyManager tracking started")
+
     -- Keep the engine running FOREVER
     while isRunning do
         task.wait(1)
