@@ -83,6 +83,7 @@ local function heartbeat()
         else
             -- We're seated in our plane
             -- TODO: Combat logic
+            CombatBrain.update()
             Debug.info("Main", "Seated and ready for combat!")
             
             -- Check if we're still in the plane
