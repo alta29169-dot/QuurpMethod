@@ -1,4 +1,4 @@
--- FlightController.lua – Plane Movement Control
+-- FlightController.lua – Plane Movement Control | I just want to love 
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -36,7 +36,7 @@ local targetPosition = nil
 local currentMode = "cruise"
 local isFlying = false
 local lastUpdate = 0
-local updateInterval = 0.1  -- Update every 0.1 seconds
+local updateInterval = 0.1
 
 -- ==========================================
 -- DEBUG
@@ -71,7 +71,6 @@ function FlightController.getPlaneParts()
         align.Name = "AlignOrientation"
         align.Parent = body
         
-        -- Create attachments
         local att0 = Instance.new("Attachment")
         att0.Name = "AlignOrientation_Att0"
         att0.Parent = body
@@ -124,7 +123,6 @@ function FlightController.setTarget(position, mode)
     isFlying = true
     lastUpdate = tick()
     
-    -- Update parts
     local parts = FlightController.getPlaneParts()
     if not parts then
         debugPrint("Failed to get plane parts")
@@ -132,7 +130,6 @@ function FlightController.setTarget(position, mode)
         return false
     end
     
-    -- Set responsiveness based on mode
     local resp = RESPONSIVENESS[currentMode] or RESPONSIVENESS.cruise
     if parts.align then
         parts.align.Responsiveness = resp
@@ -151,14 +148,12 @@ function FlightController.update()
     if not isFlying then return end
     if not targetPosition then return end
     
-    -- Rate limit updates
     local now = tick()
     if now - lastUpdate < updateInterval then
         return
     end
     lastUpdate = now
     
-    -- Refresh parts
     local parts = FlightController.getPlaneParts()
     if not parts then
         debugPrint("Lost plane parts, stopping")
@@ -176,31 +171,26 @@ function FlightController.update()
         return
     end
     
-    -- Calculate target CFrame (look at target position)
     local currentPos = body.Position
     local direction = (targetPosition - currentPos)
     local distance = direction.Magnitude
     
-    -- If we're close enough, stop
     if distance < ARRIVAL_TOLERANCE then
         debugPrint(string.format("Arrived at target (%.1f studs)", distance))
         isFlying = false
-        velocity.Velocity = Vector3.new(0, 0, 0)
+        velocity.VectorVelocity = Vector3.new(0, 0, 0)  -- FIXED: Velocity → VectorVelocity
         return
     end
     
-    -- Normalize direction
     local dirUnit = direction.Unit
     
-    -- Set rotation target (look at target position)
     local targetCFrame = CFrame.lookAt(currentPos, currentPos + dirUnit)
     align.CFrame = targetCFrame
     
     -- Move forward at fixed speed
     local forward = body.CFrame.LookVector
-    velocity.Velocity = forward * SPEED
+    velocity.VectorVelocity = forward * SPEED  -- FIXED: Velocity → VectorVelocity
     
-    -- Debug every 5 seconds
     if DEBUG_FLIGHT and math.floor(now) % 5 == 0 and math.floor(now) ~= math.floor(now - updateInterval) then
         debugPrint(string.format("Flying to target: %.0f studs away, mode: %s", distance, currentMode))
     end
@@ -215,7 +205,7 @@ function FlightController.stop()
     
     local parts = FlightController.getPlaneParts()
     if parts and parts.velocity then
-        parts.velocity.Velocity = Vector3.new(0, 0, 0)
+        parts.velocity.VectorVelocity = Vector3.new(0, 0, 0)  -- FIXED: Velocity → VectorVelocity
     end
     
     debugPrint("Stopped")
