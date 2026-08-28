@@ -1,4 +1,4 @@
--- FlightController.lua – Plane Movement Controls | I just want to love
+-- FlightController.lua – Plane Movement Control | I just want to love
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -36,7 +36,7 @@ local currentMode = "cruise"
 local isFlying = false
 local lastUpdate = 0
 local updateInterval = 0.1
-local constraintsInitialized = false  -- Track if we've already set up constraints
+local constraintsInitialized = false
 
 -- ==========================================
 -- DEBUG
@@ -48,7 +48,59 @@ local function debugPrint(...)
 end
 
 -- ==========================================
--- CLEANUP LEGACY CONSTRAINTS (ONLY ONCE)
+-- SET HEADING (Handles both BodyGyro AND AlignOrientation)
+-- ==========================================
+local function setHeading(body, targetPos, lerpFactor)
+    -- Look for either BodyGyro or AlignOrientation
+    local gyro = body:FindFirstChild("BodyGyro") or body:FindFirstChild("AlignOrientation")
+    if not gyro then
+        debugPrint("No gyro constraint found")
+        return
+    end
+
+    local dir = targetPos - body.Position
+    if dir.Magnitude < 0.1 then return end
+
+    local desired = CFrame.new(body.Position, targetPos)
+
+    if gyro:IsA("BodyGyro") then
+        gyro.CFrame = gyro.CFrame:Lerp(desired, math.clamp(lerpFactor or 0.10, 0, 1))
+        gyro.D = 0.8
+        gyro.MaxTorque = Vector3.new(MAX_TORQUE, MAX_TORQUE, MAX_TORQUE)
+        debugPrint("BodyGyro updated")
+    elseif gyro:IsA("AlignOrientation") then
+        gyro.CFrame = desired
+        gyro.Responsiveness = math.clamp((lerpFactor or 0.10) * 200, 1, 200)
+        gyro.MaxTorque = math.huge
+        debugPrint("AlignOrientation updated")
+    end
+end
+
+-- ==========================================
+-- SET SPEED (Handles both BodyVelocity AND LinearVelocity)
+-- ==========================================
+local function setSpeed(body, speed)
+    local vel = body:FindFirstChild("BodyVelocity") or body:FindFirstChild("LinearVelocity")
+    if not vel then
+        debugPrint("No velocity constraint found")
+        return
+    end
+    
+    local moveDir = body.CFrame.LookVector * speed
+    
+    if vel:IsA("BodyVelocity") then
+        vel.Velocity = moveDir
+        vel.MaxForce = Vector3.new(MAX_FORCE, MAX_FORCE, MAX_FORCE)
+        debugPrint("BodyVelocity updated")
+    elseif vel:IsA("LinearVelocity") then
+        vel.VectorVelocity = moveDir
+        vel.MaxForce = MAX_FORCE
+        debugPrint("LinearVelocity updated")
+    end
+end
+
+-- ==========================================
+-- CLEANUP LEGACY CONSTRAINTS
 -- ==========================================
 function FlightController.cleanupConstraints(body)
     if not body then return end
@@ -127,8 +179,8 @@ function FlightController.initializeConstraints()
     align.Attachment0 = att0
     align.Attachment1 = att1
     align.CFrame = body.CFrame
-    align.MaxTorque = MAX_TORQUE
-    align.Responsiveness = RESPONSIVENESS.cruise
+    align.MaxTorque = math.huge
+    align.Responsiveness = 50
     align.Enabled = true
     debugPrint("AlignOrientation created")
     
@@ -146,7 +198,7 @@ function FlightController.initializeConstraints()
 end
 
 -- ==========================================
--- GET PLANE PARTS (No cleanup, just get)
+-- GET PLANE PARTS
 -- ==========================================
 function FlightController.getPlaneParts()
     local plane = StateManager.get("targetVehicle")
@@ -159,16 +211,28 @@ function FlightController.getPlaneParts()
         return nil
     end
     
+    -- Check for either type of constraint
     local align = body:FindFirstChild("AlignOrientation")
     local velocity = body:FindFirstChild("LinearVelocity")
     
-    if not align or not velocity then
-        debugPrint("Missing constraints, reinitializing...")
+    -- Also check for legacy constraints
+    local gyro = body:FindFirstChild("BodyGyro")
+    local bodyVel = body:FindFirstChild("BodyVelocity")
+    
+    if not align and not gyro then
+        debugPrint("No orientation constraint found, initializing...")
         FlightController.initializeConstraints()
-        -- Try again
         align = body:FindFirstChild("AlignOrientation")
+        if not align then
+            return nil
+        end
+    end
+    
+    if not velocity and not bodyVel then
+        debugPrint("No velocity constraint found, initializing...")
+        FlightController.initializeConstraints()
         velocity = body:FindFirstChild("LinearVelocity")
-        if not align or not velocity then
+        if not velocity then
             return nil
         end
     end
@@ -176,8 +240,8 @@ function FlightController.getPlaneParts()
     return {
         plane = plane,
         body = body,
-        align = align,
-        velocity = velocity,
+        align = align or gyro,
+        velocity = velocity or bodyVel,
     }
 end
 
@@ -200,11 +264,6 @@ function FlightController.setTarget(position, mode)
         debugPrint("Failed to get plane parts")
         isFlying = false
         return false
-    end
-    
-    local resp = RESPONSIVENESS[currentMode] or RESPONSIVENESS.cruise
-    if parts.align then
-        parts.align.Responsiveness = resp
     end
     
     debugPrint(string.format("Target set to (%.0f, %.0f, %.0f) in %s mode", 
@@ -250,19 +309,20 @@ function FlightController.update()
     if distance < ARRIVAL_TOLERANCE then
         debugPrint(string.format("Arrived at target (%.1f studs)", distance))
         isFlying = false
-        velocity.VectorVelocity = Vector3.new(0, 0, 0)
+        setSpeed(body, 0)
         return
     end
     
-    local dirUnit = direction.Unit
+    -- Use the working script's approach
+    local lerpFactor = 0.08  -- attack mode
+    if currentMode == "cruise" then
+        lerpFactor = 0.05
+    elseif currentMode == "climb" then
+        lerpFactor = 0.07
+    end
     
-    -- Set rotation target
-    local targetCFrame = CFrame.lookAt(currentPos, currentPos + dirUnit)
-    align.CFrame = targetCFrame
-    
-    -- Move forward at fixed speed
-    local forward = body.CFrame.LookVector
-    velocity.VectorVelocity = forward * SPEED
+    setHeading(body, targetPosition, lerpFactor)
+    setSpeed(body, SPEED)
     
     if DEBUG_FLIGHT and math.floor(now) % 5 == 0 and math.floor(now) ~= math.floor(now - updateInterval) then
         debugPrint(string.format("Flying to target: %.0f studs away, mode: %s", distance, currentMode))
@@ -277,8 +337,8 @@ function FlightController.stop()
     targetPosition = nil
     
     local parts = FlightController.getPlaneParts()
-    if parts and parts.velocity then
-        parts.velocity.VectorVelocity = Vector3.new(0, 0, 0)
+    if parts then
+        setSpeed(parts.body, 0)
     end
     
     debugPrint("Stopped")
@@ -311,10 +371,6 @@ end
 function FlightController.setMode(mode)
     if RESPONSIVENESS[mode] then
         currentMode = mode
-        local parts = FlightController.getPlaneParts()
-        if parts and parts.align then
-            parts.align.Responsiveness = RESPONSIVENESS[mode]
-        end
         debugPrint("Mode set to:", mode)
         return true
     end
