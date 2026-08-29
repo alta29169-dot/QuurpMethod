@@ -24,9 +24,8 @@ local function heartbeat()
     Debug.info("Main", "Heartbeat started")
     
     while isRunning do
-        task.wait(1.5)  -- Check every 1.5 seconds
+        task.wait(1.5)
         
-        -- Check if we're alive
         if not player.Character then
             Debug.info("Main", "Waiting for character...")
             continue
@@ -46,11 +45,9 @@ local function heartbeat()
             if character then
                 local airport = AirportManager.getNearestAirport(character)
                 if airport then
-                    -- Walk to airport
                     local arrived = AutoSeater.walkToPosition(airport.Position)
                     
                     if arrived then
-                        -- Spawn bomber
                         Debug.info("Main", "At airport, spawning bomber...")
                         BomberManager.spawnBomber(airport)
                     end
@@ -65,27 +62,20 @@ local function heartbeat()
             
             local plane = StateManager.get("targetVehicle")
             if plane then
-                -- Walk to bomber
                 local arrived = AutoSeater.walkToBomber(plane)
                 
                 if arrived then
-                    -- Try to sit
                     Debug.info("Main", "At bomber, trying to sit...")
                     AutoSeater.trySitInBomber(plane)
                 end
             else
                 Debug.warn("Main", "targetVehicle is nil but hasPlane is true!")
-                -- Force state reset
                 StateManager.set("hasPlane", false)
             end
             
         else
             -- We're seated in our plane
-            -- CHECK HEALTH: If plane is dead, cut control
-            if FlightController.checkHealth() then
-                Debug.warn("Main", "Plane destroyed - control cut")
-                -- Don't run combat if dead
-            end
+            -- CombatBrain runs every frame - nothing to do here
             
             -- Check if we're still in the plane
             local plane = StateManager.get("targetVehicle")
