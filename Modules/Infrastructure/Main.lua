@@ -85,8 +85,14 @@ local function heartbeat()
         else
             -- We're seated in our plane
             -- TODO: Combat logic
-            CombatBrain.update()
-            Debug.info("Main", "Seated and ready for combat!")
+            -- CHECK HEALTH: If plane is dead, cut control
+            if FlightController.checkHealth() then
+                Debug.warn("Main", "Plane destroyed - control cut")
+                -- Don't run combat if dead
+            else
+                -- Run CombatBrain
+                CombatBrain.update()
+            end
             
             -- Check if we're still in the plane
             local occupant = BomberManager.getBomberOccupant(myBomber)
