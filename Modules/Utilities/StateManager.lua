@@ -1,4 +1,4 @@
--- StateManager.lua | looks like love
+-- StateManager.luau | looks like love
 local StateManager = {}
 
 -- Get Debug module safely
@@ -13,29 +13,54 @@ local function safePrint(...)
     end
 end
 
--- ===== STATE =====
+-- ==========================================
+-- STATE VARIABLES (Complete List)
+-- ==========================================
 local state = {
-    seated = false,
-    setupRunning = false,
-    recovering = false,
-    hasPlane = false,
-    targetVehicle = nil,
-    isPlaneAlive = false,
-    generation = 0,
-    isRunning = true,
-    enemyList = {},       
-    enemyCount = 0,      
-    lastEnemyUpdate = 0,  
+    -- ===== VEHICLE STATE =====
+    seated = false,           -- Are we sitting in a plane?
+    hasPlane = false,         -- Do we own a plane?
+    targetVehicle = nil,      -- Reference to our plane
+    isPlaneAlive = false,     -- Is our plane still alive?
+    
+    -- ===== PLAYER STATE =====
+    generation = 0,           -- Respawn counter
+    isRunning = true,         -- Engine running?
+    characterLoaded = false,  -- Is character loaded?
+    isAlive = false,          -- Is player alive?
+    
+    -- ===== PLANE STATS (OURS) =====
+    myHealth = 0,             -- Our plane's HP
+    myAmmo = 0,               -- Our plane's ammo
+    myFuel = 0,               -- Our plane's fuel
+    myTeam = nil,             -- Our team name (USA/Japan)
+    
+    -- ===== ENEMY TRACKING =====
+    enemyList = {},           -- Table of enemy data keyed by instance
+    enemyCount = 0,           -- Number of tracked enemies
+    lastEnemyUpdate = 0,      -- Timestamp of last enemy update
+    
+    -- ===== AIRPORT CACHE =====
+    airportCache = {},        -- Cached airport instances
+    airportsCached = false,   -- Are airports cached?
+    
+    -- ===== SETUP/RECOVERY STATE =====
+    setupRunning = false,     -- Is setup in progress?
+    recovering = false,       -- Is recovery in progress?
 }
 
--- ===== LOCKS (for race conditions) =====
+-- ==========================================
+-- LOCKS (for race conditions)
+-- ==========================================
 local locks = {
     setup = false,
     recovery = false,
     spawn = false,
 }
 
--- ===== COOLDOWN TRACKING =====
+-- ==========================================
+-- COOLDOWN TRACKING
+-- ==========================================
 local lastRespawnTime = 0
 local lastRecoveryTime = 0
 
@@ -43,7 +68,6 @@ local lastRecoveryTime = 0
 -- ATOMIC OPERATIONS
 -- ==========================================
 
--- Try to claim setup lock (returns true if successful)
 function StateManager:tryLockSetup()
     if locks.setup or state.setupRunning then
         return false
@@ -58,14 +82,13 @@ function StateManager:unlockSetup()
     state.setupRunning = false
 end
 
--- Try to claim recovery lock
 function StateManager:tryLockRecovery()
     local now = tick()
     if locks.recovery or state.recovering then
         return false
     end
     if now - lastRecoveryTime < 3 then
-        return false  -- Cooldown
+        return false
     end
     locks.recovery = true
     state.recovering = true
@@ -78,7 +101,6 @@ function StateManager:unlockRecovery()
     state.recovering = false
 end
 
--- Generation management
 function StateManager:nextGeneration()
     state.generation = state.generation + 1
     return state.generation
@@ -88,7 +110,6 @@ function StateManager:getGeneration()
     return state.generation
 end
 
--- Respawn debounce
 function StateManager:canRespawn()
     local now = tick()
     if now - lastRespawnTime < 2 then
@@ -99,10 +120,9 @@ function StateManager:canRespawn()
 end
 
 -- ==========================================
--- STATEMANAGER METHODS FOR ENEMY LIST
+-- ENEMY LIST METHODS
 -- ==========================================
 
--- Add enemy to list (called by Main)
 function StateManager.addEnemy(enemyData)
     if not enemyData or not enemyData.instance then return end
     
@@ -113,7 +133,6 @@ function StateManager.addEnemy(enemyData)
     safePrint("Added enemy: " .. key .. " (" .. enemyData.type .. ")")
 end
 
--- Remove enemy from list (called by EnemyManager)
 function StateManager.removeEnemy(key)
     if state.enemyList[key] then
         state.enemyList[key] = nil
@@ -122,17 +141,14 @@ function StateManager.removeEnemy(key)
     end
 end
 
--- Get enemy list
 function StateManager.getEnemyList()
     return state.enemyList
 end
 
--- Get enemy count
 function StateManager.getEnemyCount()
     return state.enemyCount
 end
 
--- Clear all enemies (on respawn)
 function StateManager.clearEnemies()
     state.enemyList = {}
     state.enemyCount = 0
@@ -159,6 +175,10 @@ function StateManager:hasPlane() return state.hasPlane end
 function StateManager:isSetupRunning() return state.setupRunning end
 function StateManager:isRecovering() return state.recovering end
 function StateManager:getVehicle() return state.targetVehicle end
+function StateManager:getHealth() return state.myHealth end
+function StateManager:getAmmo() return state.myAmmo end
+function StateManager:getFuel() return state.myFuel end
+function StateManager:getTeam() return state.myTeam end
 
 -- ==========================================
 -- RESET
@@ -170,7 +190,14 @@ function StateManager.resetAll()
     state.hasPlane = false
     state.isPlaneAlive = false
     state.targetVehicle = nil
+    state.myHealth = 0
+    state.myAmmo = 0
+    state.myFuel = 0
+    state.characterLoaded = false
+    state.isAlive = false
     -- Generation stays (don't reset it)
+    -- Enemy list stays (don't reset it - EnemyManager handles cleanup)
+    -- Airport cache stays (don't reset it - persists through respawns)
 end
 
 return StateManager
