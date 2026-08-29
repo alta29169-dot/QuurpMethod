@@ -1,4 +1,4 @@
--- FlightController.lua – Smooth Flight | I just want to love
+-- FlightController.lua – Plane Movement Control | I just want to love
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -34,7 +34,10 @@ local RESPONSIVENESS = {
 local targetPosition = nil
 local currentMode = "cruise"
 local isFlying = false
+local isCut = false  -- NEW: Control cut state
 local constraintsInitialized = false
+local cutTimer = 0
+local cutDuration = 0
 
 -- ==========================================
 -- DEBUG
@@ -51,7 +54,6 @@ end
 local function setHeading(body, targetPos, lerpFactor)
     local gyro = body:FindFirstChild("BodyGyro") or body:FindFirstChild("AlignOrientation")
     if not gyro then
-        debugPrint("No gyro constraint found")
         return
     end
 
@@ -77,7 +79,6 @@ end
 local function setSpeed(body, speed)
     local vel = body:FindFirstChild("BodyVelocity") or body:FindFirstChild("LinearVelocity")
     if not vel then
-        debugPrint("No velocity constraint found")
         return
     end
     
@@ -90,6 +91,85 @@ local function setSpeed(body, speed)
         vel.VectorVelocity = moveDir
         vel.MaxForce = MAX_FORCE
     end
+end
+
+-- ==========================================
+-- CUT CONTROL (Disable all constraints)
+-- ==========================================
+function FlightController.cutControl(duration)
+    if not duration or duration <= 0 then
+        debugPrint("Cut control (indefinite)")
+        isCut = true
+        cutDuration = 0
+        return
+    end
+    
+    debugPrint("Cut control for", duration, "seconds")
+    isCut = true
+    cutTimer = 0
+    cutDuration = duration
+    
+    -- Disable constraints immediately
+    local parts = FlightController.getPlaneParts()
+    if parts then
+        if parts.align then
+            parts.align.Enabled = false
+            debugPrint("AlignOrientation disabled")
+        end
+        if parts.velocity then
+            parts.velocity.VectorVelocity = Vector3.new(0, 0, 0)
+            parts.velocity.Enabled = false
+            debugPrint("LinearVelocity disabled")
+        end
+    end
+end
+
+-- ==========================================
+-- RESTORE CONTROL (Re-enable constraints)
+-- ==========================================
+function FlightController.restoreControl()
+    if not isCut then return end
+    
+    debugPrint("Restoring control")
+    isCut = false
+    cutDuration = 0
+    cutTimer = 0
+    
+    local parts = FlightController.getPlaneParts()
+    if parts then
+        if parts.align then
+            parts.align.Enabled = true
+            debugPrint("AlignOrientation enabled")
+        end
+        if parts.velocity then
+            parts.velocity.Enabled = true
+            debugPrint("LinearVelocity enabled")
+        end
+    end
+end
+
+-- ==========================================
+-- IS CONTROL CUT?
+-- ==========================================
+function FlightController.isControlCut()
+    return isCut
+end
+
+-- ==========================================
+-- CHECK HEALTH (Called from heartbeat)
+-- ==========================================
+function FlightController.checkHealth()
+    local health = StateManager.get("myHealth")
+    
+    -- If health is 0 or below and we're not already cut
+    if health and health <= 0 and not isCut then
+        debugPrint("⚠️ Plane destroyed (HP = " .. health .. ") - cutting control")
+        FlightController.cutControl()  -- Indefinite cut
+        StateManager.set("isPlaneAlive", false)
+        return true
+    end
+    
+    return false
 end
 
 -- ==========================================
@@ -137,7 +217,6 @@ function FlightController.initializeConstraints()
         return false
     end
     
-    -- Check if we already have our constraints
     local existingAlign = body:FindFirstChild("AlignOrientation")
     local existingVelocity = body:FindFirstChild("LinearVelocity")
     
@@ -145,10 +224,8 @@ function FlightController.initializeConstraints()
         return true
     end
     
-    -- CLEANUP: Remove all existing constraints (only once)
     FlightController.cleanupConstraints(body)
     
-    -- Create AlignOrientation
     debugPrint("Creating AlignOrientation...")
     local align = Instance.new("AlignOrientation")
     align.Name = "AlignOrientation"
@@ -170,7 +247,6 @@ function FlightController.initializeConstraints()
     align.Enabled = true
     debugPrint("AlignOrientation created")
     
-    -- Create LinearVelocity
     debugPrint("Creating LinearVelocity...")
     local velocity = Instance.new("LinearVelocity")
     velocity.Name = "LinearVelocity"
@@ -234,11 +310,16 @@ function FlightController.setTarget(position, mode)
         return false
     end
     
+    -- If control is cut, don't allow new targets
+    if isCut then
+        debugPrint("Cannot set target - control is cut")
+        return false
+    end
+    
     targetPosition = position
     currentMode = mode or "cruise"
     isFlying = true
     
-    -- Ensure constraints exist
     local parts = FlightController.getPlaneParts()
     if not parts then
         debugPrint("Failed to get plane parts")
@@ -253,9 +334,20 @@ function FlightController.setTarget(position, mode)
 end
 
 -- ==========================================
--- UPDATE (Called every frame by Heartbeat - NO RATE LIMIT)
+-- UPDATE (Called every frame by Heartbeat)
 -- ==========================================
 function FlightController.update()
+    -- If control is cut, handle duration
+    if isCut then
+        if cutDuration > 0 then
+            cutTimer = cutTimer + 1/60  -- Approximate, since Heartbeat is ~60fps
+            if cutTimer >= cutDuration then
+                FlightController.restoreControl()
+            end
+        end
+        return  -- Skip all control updates when cut
+    end
+    
     if not isFlying then return end
     if not targetPosition then return end
     
@@ -286,8 +378,7 @@ function FlightController.update()
         return
     end
     
-    -- Smooth lerp factor based on mode
-    local lerpFactor = 0.08  -- attack
+    local lerpFactor = 0.08
     if currentMode == "cruise" then
         lerpFactor = 0.05
     elseif currentMode == "climb" then
