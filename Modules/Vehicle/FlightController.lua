@@ -12,7 +12,7 @@ local FlightController = {}
 -- ==========================================
 -- DEBUG CONFIG
 -- ==========================================
-local DEBUG_FLIGHT = true
+local DEBUG_FLIGHT = false
 
 -- ==========================================
 -- CONFIG
