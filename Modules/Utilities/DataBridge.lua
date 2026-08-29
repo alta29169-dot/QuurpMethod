@@ -2,6 +2,7 @@
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
 local StateManager = _G._Modules.StateManager
@@ -24,9 +25,12 @@ end
 -- ==========================================
 -- CONFIG
 -- ==========================================
-local PYTHON_URL = "http://localhost:5000"  -- Termux localhost
+local PYTHON_URL = "http://localhost:5000"
 local TIMEOUT = 5
+local SEND_INTERVAL = 0.1  -- Send observation every 0.1s (10Hz)
 local BOT_ID = nil
+local isRunning = false
+local loopConnection = nil
 
 -- ==========================================
 -- GET BOT ID
@@ -44,7 +48,6 @@ end
 function DataBridge.sendObservation()
     local observation = EnemyManager.getObservation()
     if not observation then
-        debugPrint("❌ Failed to get observation")
         return false
     end
     
@@ -78,17 +81,10 @@ function DataBridge.sendObservation()
     end)
     
     if not success then
-        debugPrint("❌ Failed to send observation (connection error)")
         return false
     end
     
-    if response and response.StatusCode == 200 then
-        debugPrint("✅ Observation sent")
-        return true
-    else
-        debugPrint("❌ Server error:", response and response.StatusCode or "unknown")
-        return false
-    end
+    return response and response.StatusCode == 200
 end
 
 -- ==========================================
@@ -97,7 +93,6 @@ end
 function DataBridge.requestAction()
     local observation = EnemyManager.getObservation()
     if not observation then
-        debugPrint("❌ Failed to get observation for action")
         return nil
     end
     
@@ -123,16 +118,10 @@ function DataBridge.requestAction()
     end)
     
     if not success or not response or response.StatusCode ~= 200 then
-        debugPrint("❌ Failed to get action")
         return nil
     end
     
     local decoded = HttpService:JSONDecode(response.Body)
-    
-    if DEBUG then
-        debugPrint("📥 Action received")
-    end
-    
     return decoded.action
 end
 
@@ -168,7 +157,58 @@ function DataBridge.sendReward(reward, done)
 end
 
 -- ==========================================
--- TEST CONNECTION
+-- MAIN LOOP (Runs on Heartbeat)
+-- ==========================================
+local lastSendTime = 0
+
+function DataBridge.loop()
+    if not isRunning then return end
+    
+    local now = tick()
+    if now - lastSendTime < SEND_INTERVAL then
+        return
+    end
+    lastSendTime = now
+    
+    -- Only send if we're seated (in a plane)
+    if not StateManager.get("seated") then
+        return
+    end
+    
+    DataBridge.sendObservation()
+end
+
+-- ==========================================
+-- START (Called from Main)
+-- ==========================================
+function DataBridge.start()
+    if isRunning then
+        debugPrint("DataBridge already running")
+        return
+    end
+    
+    debugPrint("Starting DataBridge (sending every " .. SEND_INTERVAL .. "s)")
+    isRunning = true
+    
+    loopConnection = RunService.Heartbeat:Connect(function()
+        DataBridge.loop()
+    end)
+end
+
+-- ==========================================
+-- STOP
+-- ==========================================
+function DataBridge.stop()
+    isRunning = false
+    if loopConnection then
+        loopConnection:Disconnect()
+        loopConnection = nil
+    end
+    debugPrint("DataBridge stopped")
+end
+
+-- ==========================================
+-- TEST CONNECTION (Single send)
 -- ==========================================
 function DataBridge.testConnection()
     debugPrint("Testing connection to Python server...")
@@ -184,34 +224,6 @@ function DataBridge.testConnection()
     end
     
     return success
-end
-
--- ==========================================
--- START LOOP (For testing)
--- ==========================================
-local testLoopRunning = false
-
-function DataBridge.startTestLoop(interval)
-    interval = interval or 2
-    if testLoopRunning then
-        debugPrint("Test loop already running")
-        return
-    end
-    
-    testLoopRunning = true
-    debugPrint("Starting test loop (every " .. interval .. "s)")
-    
-    task.spawn(function()
-        while testLoopRunning do
-            DataBridge.sendObservation()
-            task.wait(interval)
-        end
-    end)
-end
-
-function DataBridge.stopTestLoop()
-    testLoopRunning = false
-    debugPrint("Test loop stopped")
 end
 
 return DataBridge
