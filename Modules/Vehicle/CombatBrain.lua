@@ -9,13 +9,15 @@ local StateManager = _G._Modules.StateManager
 local Debug = _G._Modules.Debug
 local FlightController = _G._Modules.FlightController
 local EnemyManager = _G._Modules.EnemyManager
+local WeaponSystem = _G._Modules.WeaponSystem  -- ADDED
 
 local CombatBrain = {}
 
 -- ==========================================
 -- DEBUG CONFIG
 -- ==========================================
-local DEBUG_COMBAT = false  -- Turn off for performance
+local DEBUG_COMBAT = true  -- Turn on for testing
+local TEST_WEAPONS = true  -- Enable weapon testing
 
 local function debugPrint(...)
     if DEBUG_COMBAT then
@@ -28,7 +30,44 @@ end
 -- ==========================================
 local combatConnection = nil
 local lastTargetUpdate = 0
-local TARGET_UPDATE_INTERVAL = 0.1  -- Only update target every 0.1s
+local TARGET_UPDATE_INTERVAL = 0.1
+local lastMGCheck = 0
+local lastRPGCheck = 0
+local WEAPON_CHECK_INTERVAL = 0.5  -- Check weapons every 0.5s
+
+-- ==========================================
+-- GET MY POSITION
+-- ==========================================
+local function getMyPosition()
+    local plane = StateManager.get("targetVehicle")
+    if not plane then return nil end
+    
+    local mainBody = plane:FindFirstChild("MainBody")
+    if mainBody then
+        return mainBody.Position
+    end
+    
+    return nil
+end
+
+-- ==========================================
+-- GET ENEMY POSITION (Latest from StateManager)
+-- ==========================================
+local function getEnemyPosition(enemyData)
+    if not enemyData then return nil end
+    
+    -- Try to get fresh position from instance
+    local instance = enemyData.instance
+    if instance then
+        local mainBody = instance:FindFirstChild("MainBody")
+        if mainBody then
+            return mainBody.Position
+        end
+    end
+    
+    -- Fallback to cached position
+    return enemyData.position
+end
 
 -- ==========================================
 -- UPDATE (Called every frame)
@@ -39,20 +78,129 @@ function CombatBrain.update()
         return
     end
     
-    -- Rate limit target updates (don't need to set target every frame)
     local now = tick()
-    if now - lastTargetUpdate < TARGET_UPDATE_INTERVAL then
+    
+    -- Rate limit target updates
+    if now - lastTargetUpdate >= TARGET_UPDATE_INTERVAL then
+        lastTargetUpdate = now
+        
+        -- Get enemy list from StateManager
+        local enemyList = StateManager.getEnemyList()
+        if enemyList then
+            -- Find nearest enemy
+            local nearestEnemy = nil
+            local nearestDist = math.huge
+            
+            for key, data in pairs(enemyList) do
+                if data.distance and data.distance < nearestDist then
+                    nearestDist = data.distance
+                    nearestEnemy = data
+                end
+            end
+            
+            if nearestEnemy then
+                local targetPos = getEnemyPosition(nearestEnemy)
+                if targetPos then
+                    -- Lead prediction
+                    local leadTime = 0.3
+                    local predictedPos = targetPos + (nearestEnemy.velocity or Vector3.new(0,0,0)) * leadTime
+                    
+                    -- Fly toward enemy
+                    FlightController.setTarget(predictedPos, "attack")
+                end
+            end
+        end
+    end
+    
+    -- ==========================================
+    -- WEAPON TESTING
+    -- ==========================================
+    if TEST_WEAPONS then
+        if now - lastMGCheck >= WEAPON_CHECK_INTERVAL then
+            lastMGCheck = now
+            testMG()
+        end
+        
+        if now - lastRPGCheck >= WEAPON_CHECK_INTERVAL then
+            lastRPGCheck = now
+            testRPG()
+        end
+    end
+end
+
+-- ==========================================
+-- TEST MG
+-- ==========================================
+function testMG()
+    local enemyList = StateManager.getEnemyList()
+    if not enemyList then
+        debugPrint("MG Test: No enemy list")
         return
     end
-    lastTargetUpdate = now
     
-    -- Get enemy list from StateManager
+    -- Find nearest enemy
+    local nearestEnemy = nil
+    local nearestDist = math.huge
+    
+    for key, data in pairs(enemyList) do
+        if data.distance and data.distance < nearestDist then
+            nearestDist = data.distance
+            nearestEnemy = data
+        end
+    end
+    
+    if not nearestEnemy then
+        debugPrint("MG Test: No enemies found")
+        -- Turn off MG if no enemies
+        if WeaponSystem.getMGStatus().toggled then
+            WeaponSystem.setMGToggle(false)
+            debugPrint("MG Test: Turned off (no enemies)")
+        end
+        return
+    end
+    
+    local targetPos = getEnemyPosition(nearestEnemy)
+    if not targetPos then
+        debugPrint("MG Test: No enemy position")
+        return
+    end
+    
+    -- Check if enemy is in MG firing arc
+    local inArc = WeaponSystem.isInMGFiringArc(targetPos, 20)
+    local ammo = StateManager.get("myAmmo") or 0
+    
+    debugPrint(string.format("MG Test: Enemy at %.0f studs, Arc: %s, Ammo: %d", 
+                nearestDist, inArc and "✅" or "❌", ammo))
+    
+    if inArc and ammo > 0 then
+        -- Turn MG on
+        if not WeaponSystem.getMGStatus().toggled then
+            WeaponSystem.setMGToggle(true)
+            debugPrint("MG Test: FIRING! 🎯")
+        end
+    else
+        -- Turn MG off
+        if WeaponSystem.getMGStatus().toggled then
+            WeaponSystem.setMGToggle(false)
+            if ammo <= 0 then
+                debugPrint("MG Test: No ammo - turned off")
+            else
+                debugPrint("MG Test: Out of arc - turned off")
+            end
+        end
+    end
+end
+
+-- ==========================================
+-- TEST RPG
+-- ==========================================
+function testRPG()
     local enemyList = StateManager.getEnemyList()
     if not enemyList then
         return
     end
     
-    -- Find nearest enemy from StateManager
+    -- Find nearest enemy
     local nearestEnemy = nil
     local nearestDist = math.huge
     
@@ -67,18 +215,33 @@ function CombatBrain.update()
         return
     end
     
-    -- Get enemy position (already fresh from EnemyManager tracking)
-    local targetPos = nearestEnemy.position
+    local targetPos = getEnemyPosition(nearestEnemy)
     if not targetPos then
         return
     end
     
-    -- Optional: lead prediction using velocity
-    local leadTime = 0.3
-    local predictedPos = targetPos + (nearestEnemy.velocity or Vector3.new(0,0,0)) * leadTime
+    -- Check if RPG can fire
+    local canFire = WeaponSystem.canFireRPG()
+    local hasLOS = WeaponSystem.hasLineOfSight(targetPos)
+    local rpgStatus = WeaponSystem.getRPGStatus()
     
-    -- Fly toward enemy
-    FlightController.setTarget(predictedPos, "attack")
+    -- Only log RPG status occasionally (every 5 seconds)
+    if math.floor(tick()) % 5 == 0 then
+        debugPrint(string.format("RPG Status: Ready: %s, LOS: %s, Cooldown: %.1fs", 
+                    canFire and "✅" or "❌", 
+                    hasLOS and "✅" or "❌", 
+                    rpgStatus.cooldown))
+    end
+    
+    -- Fire RPG if ready and has LOS
+    if canFire and hasLOS then
+        local success = WeaponSystem.fireRPG(targetPos)
+        if success then
+            debugPrint("💥 RPG FIRED at enemy!")
+        else
+            debugPrint("RPG fire failed")
+        end
+    end
 end
 
 -- ==========================================
@@ -91,6 +254,11 @@ function CombatBrain.start()
     end
     
     debugPrint("Starting combat loop (every frame)")
+    
+    -- Equip RPG on start
+    task.wait(1)  -- Wait for everything to load
+    WeaponSystem.equipRPG()
+    debugPrint("RPG equipped on start")
     
     combatConnection = RunService.Heartbeat:Connect(function()
         CombatBrain.update()
@@ -106,6 +274,9 @@ function CombatBrain.stop()
         combatConnection = nil
         debugPrint("Combat loop stopped")
     end
+    
+    -- Stop all weapons
+    WeaponSystem.stopAll()
 end
 
 -- ==========================================
@@ -122,6 +293,8 @@ function CombatBrain.getStatus()
         enemiesInRange = count,
         isFlying = FlightController.isFlying(),
         target = FlightController.getTarget(),
+        mgStatus = WeaponSystem.getMGStatus(),
+        rpgStatus = WeaponSystem.getRPGStatus(),
     }
 end
 
