@@ -98,7 +98,7 @@ function BomberManager.getPlaneData(plane)
     local hp = plane:FindFirstChild("HP")
     local owner = plane:FindFirstChild("Owner")
     local occupant = plane:FindFirstChild("Occupant")
-    local ammo = plane:FindFirstChild("Ammo")
+    local ammo = plane:FindFirstChild("BulletC")
     local fuel = plane:FindFirstChild("Fuel")
     local team = plane:FindFirstChild("Team")
     
