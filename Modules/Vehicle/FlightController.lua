@@ -20,7 +20,6 @@ local DEBUG_FLIGHT = true
 local SPEED = 115
 local MAX_TORQUE = 500000
 local MAX_FORCE = 100000
-local ARRIVAL_TOLERANCE = 5
 
 local RESPONSIVENESS = {
     attack = 0.08,
@@ -323,15 +322,8 @@ function FlightController.update()
         return
     end
     
-    local currentPos = body.Position
-    local direction = (targetPosition - currentPos)
-    local distance = direction.Magnitude
-    
-    if distance < ARRIVAL_TOLERANCE then
-        setSpeed(body, 0)
-        isFlying = false
-        return
-    end
+    -- NO ARRIVAL CHECK - just keep flying toward target forever
+    -- Plane will naturally orbit or overshoot, game handles the rest
     
     local lerpFactor = 0.08
     if currentMode == "cruise" then
