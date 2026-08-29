@@ -84,14 +84,10 @@ local function heartbeat()
             
         else
             -- We're seated in our plane
-            -- TODO: Combat logic
             -- CHECK HEALTH: If plane is dead, cut control
             if FlightController.checkHealth() then
                 Debug.warn("Main", "Plane destroyed - control cut")
                 -- Don't run combat if dead
-            else
-                -- Run CombatBrain
-                CombatBrain.update()
             end
             
             -- Check if we're still in the plane
@@ -207,6 +203,10 @@ local function start()
     -- Start EnemyManager tracking loop (runs independently)
     task.spawn(EnemyManager.startTracking)
     print("[Main] EnemyManager tracking started")
+
+    -- Start CombatBrain (every frame)
+    task.spawn(CombatBrain.start)
+    print("[Main] CombatBrain started")
 
     -- Start FlightController
     FlightController.start()
