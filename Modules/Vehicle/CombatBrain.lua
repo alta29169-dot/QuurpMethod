@@ -1,8 +1,9 @@
--- CombatBrain.lua – Simplified Combat Logic
--- Flies toward the nearest enemy from StateManager
+-- CombatBrain.lua – Simplified Combat Logic | I would always choose you
+-- Runs every frame via RunService
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
 local StateManager = _G._Modules.StateManager
 local Debug = _G._Modules.Debug
@@ -14,7 +15,7 @@ local CombatBrain = {}
 -- ==========================================
 -- DEBUG CONFIG
 -- ==========================================
-local DEBUG_COMBAT = true
+local DEBUG_COMBAT = false  -- Turn off for performance
 
 local function debugPrint(...)
     if DEBUG_COMBAT then
@@ -23,19 +24,31 @@ local function debugPrint(...)
 end
 
 -- ==========================================
--- UPDATE (Called every heartbeat)
+-- STATE
+-- ==========================================
+local combatConnection = nil
+local lastTargetUpdate = 0
+local TARGET_UPDATE_INTERVAL = 0.1  -- Only update target every 0.1s
+
+-- ==========================================
+-- UPDATE (Called every frame)
 -- ==========================================
 function CombatBrain.update()
     -- Check if we're seated in a plane
     if not StateManager.get("seated") then
-        debugPrint("Not seated, skipping combat")
         return
     end
+    
+    -- Rate limit target updates (don't need to set target every frame)
+    local now = tick()
+    if now - lastTargetUpdate < TARGET_UPDATE_INTERVAL then
+        return
+    end
+    lastTargetUpdate = now
     
     -- Get enemy list from StateManager
     local enemyList = StateManager.getEnemyList()
     if not enemyList then
-        debugPrint("No enemy list in StateManager")
         return
     end
     
@@ -51,30 +64,48 @@ function CombatBrain.update()
     end
     
     if not nearestEnemy then
-        debugPrint("No enemies found")
-        -- Optional: fly to a default position or hold
         return
     end
     
-    -- Get enemy position
+    -- Get enemy position (already fresh from EnemyManager tracking)
     local targetPos = nearestEnemy.position
     if not targetPos then
-        debugPrint("Enemy has no position")
         return
     end
     
-    -- Calculate distance
-    local myPos = EnemyManager.getMyPosition()
-    if myPos then
-        local dist = (targetPos - myPos).Magnitude
-        debugPrint(string.format("Nearest enemy: %s at %.0f studs", 
-                    nearestEnemy.type or "Unknown", dist))
-    end
+    -- Optional: lead prediction using velocity
+    local leadTime = 0.3
+    local predictedPos = targetPos + (nearestEnemy.velocity or Vector3.new(0,0,0)) * leadTime
     
     -- Fly toward enemy
-    FlightController.setTarget(targetPos, "attack")
-    debugPrint(string.format("Flying to enemy at (%.0f, %.0f, %.0f)", 
-                targetPos.X, targetPos.Y, targetPos.Z))
+    FlightController.setTarget(predictedPos, "attack")
+end
+
+-- ==========================================
+-- START (Called from Main)
+-- ==========================================
+function CombatBrain.start()
+    if combatConnection then
+        debugPrint("Combat loop already running")
+        return
+    end
+    
+    debugPrint("Starting combat loop (every frame)")
+    
+    combatConnection = RunService.Heartbeat:Connect(function()
+        CombatBrain.update()
+    end)
+end
+
+-- ==========================================
+-- STOP
+-- ==========================================
+function CombatBrain.stop()
+    if combatConnection then
+        combatConnection:Disconnect()
+        combatConnection = nil
+        debugPrint("Combat loop stopped")
+    end
 end
 
 -- ==========================================
