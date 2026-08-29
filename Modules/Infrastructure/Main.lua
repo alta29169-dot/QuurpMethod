@@ -1,4 +1,4 @@
--- Main.lua – qurp v3 ( Phase 1 )
+-- Main.lua – qurp v3 (Phase 1)
 -- I love you Ashley
 
 local Players = game:GetService("Players")
@@ -163,9 +163,6 @@ local function onRespawn(char)
     local cache = StateManager.get("airportCache")
     print("[Main] Airport cache has " .. (#cache or 0) .. " airports")
     Debug.info("Main", "Airport cache has " .. (#cache or 0) .. " airports")
-
-    -- Update plane state after respawn
-    BomberManager.updatePlaneState()
     
     -- Start heartbeat if not already running
     if not _G._heartbeatRunning then
