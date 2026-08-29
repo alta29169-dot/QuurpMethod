@@ -386,7 +386,7 @@ function EnemyManager.getObservation()
         altitudeNormalized = 0,
         distanceToKillZone = 0,
         speed = 0,
-        pitch = 0,                    -- NEW: plane pitch angle
+        pitch = 0,
         isSeated = 0,
         isAlive = 0,
         
@@ -395,16 +395,18 @@ function EnemyManager.getObservation()
         enemyBearing = 0,
         enemyElevation = 0,
         enemyHealth = 0,
+        enemyAmmo = 0,              -- NEW
+        enemyFuel = 0,              -- NEW
         enemyAltitude = 0,
         enemyAltitudeNormalized = 0,
-        altitudeDifference = 0,       -- NEW: enemy.Y - self.Y
+        altitudeDifference = 0,
         enemySpeed = 0,
         enemyFacingAngle = 0,
         
         -- === ENEMY RELATIVE VELOCITY ===
-        enemyRelVelX = 0,             -- NEW
-        enemyRelVelY = 0,             -- NEW
-        enemyRelVelZ = 0,             -- NEW
+        enemyRelVelX = 0,
+        enemyRelVelY = 0,
+        enemyRelVelZ = 0,
         
         -- === ENEMY TYPE ===
         enemyIsBomber = 0,
@@ -413,8 +415,8 @@ function EnemyManager.getObservation()
         
         -- === COMBAT STATE ===
         enemiesInRange = 0,
-        weaponCooldown = 0,           -- NEW: RPG cooldown
-        mgToggled = 0,                -- NEW: MG state
+        weaponCooldown = 0,
+        mgToggled = 0,
     }
     
     -- Get self state
@@ -436,7 +438,7 @@ function EnemyManager.getObservation()
     obs.isSeated = seated and 1 or 0
     obs.isAlive = player.Character and 1 or 0
     
-    -- Plane pitch angle (how much we're pointing up/down)
+    -- Plane pitch angle
     if plane then
         local mainBody = plane:FindFirstChild("MainBody")
         if mainBody then
@@ -448,7 +450,7 @@ function EnemyManager.getObservation()
     -- Get plane stats
     if plane then
         local hp = plane:FindFirstChild("HP")
-        local ammo = plane:FindFirstChild("BulletC")  -- Fixed: Ammo → BulletC
+        local ammo = plane:FindFirstChild("BulletC")
         local fuel = plane:FindFirstChild("Fuel")
         
         obs.health = hp and clamp(hp.Value / 100, 0, 1) or 0
@@ -461,7 +463,7 @@ function EnemyManager.getObservation()
     if WeaponSystem then
         local rpgStatus = WeaponSystem.getRPGStatus()
         local mgStatus = WeaponSystem.getMGStatus()
-        obs.weaponCooldown = clamp(rpgStatus.cooldown / 3, 0, 1)  -- 0-1 (3s max)
+        obs.weaponCooldown = clamp(rpgStatus.cooldown / 3, 0, 1)
         obs.mgToggled = mgStatus.toggled and 1 or 0
     end
     
@@ -486,6 +488,8 @@ function EnemyManager.getObservation()
     obs.enemyBearing = clamp(nearest.bearing / 180, -1, 1)
     obs.enemyElevation = clamp(nearest.elevation / 90, -1, 1)
     obs.enemyHealth = clamp(nearest.health / 100, 0, 1)
+    obs.enemyAmmo = clamp(nearest.ammo / 100, 0, 1)        -- NEW
+    obs.enemyFuel = clamp(nearest.fuel / 100, 0, 1)        -- NEW
     obs.enemyAltitude = nearest.altitude
     obs.enemyAltitudeNormalized = clamp(nearest.altitude / MAX_ALTITUDE, 0, 1)
     obs.altitudeDifference = clamp((nearest.altitude - selfPos.Y) / MAX_ALTITUDE, -1, 1)
