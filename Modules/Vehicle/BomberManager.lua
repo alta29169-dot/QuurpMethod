@@ -143,6 +143,15 @@ function BomberManager.updateOurPlane()
             -- Check if we're seated
             local inBomber = BomberManager.isUsInBomber(myBomber)
             StateManager.set("seated", inBomber)
+
+            -- HEALTH CHECK: If health is 0, cut control
+            if data.health <= 0 and data.isAlive == false then
+                local FlightController = _G._Modules.FlightController
+                if FlightController then
+                    FlightController.cutControl()
+                    debugPrint("⚠️ Plane destroyed - control cut")
+                end
+            end
             
             myPlaneData = data
         end
