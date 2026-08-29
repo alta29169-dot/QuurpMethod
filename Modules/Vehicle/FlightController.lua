@@ -34,10 +34,8 @@ local RESPONSIVENESS = {
 local targetPosition = nil
 local currentMode = "cruise"
 local isFlying = false
-local isCut = false  -- NEW: Control cut state
+local isCut = false
 local constraintsInitialized = false
-local cutTimer = 0
-local cutDuration = 0
 
 -- ==========================================
 -- DEBUG
@@ -96,20 +94,12 @@ end
 -- ==========================================
 -- CUT CONTROL (Disable all constraints)
 -- ==========================================
-function FlightController.cutControl(duration)
-    if not duration or duration <= 0 then
-        debugPrint("Cut control (indefinite)")
-        isCut = true
-        cutDuration = 0
-        return
-    end
+function FlightController.cutControl()
+    if isCut then return end
     
-    debugPrint("Cut control for", duration, "seconds")
+    debugPrint("Cutting control")
     isCut = true
-    cutTimer = 0
-    cutDuration = duration
     
-    -- Disable constraints immediately
     local parts = FlightController.getPlaneParts()
     if parts then
         if parts.align then
@@ -117,7 +107,6 @@ function FlightController.cutControl(duration)
             debugPrint("AlignOrientation disabled")
         end
         if parts.velocity then
-            parts.velocity.VectorVelocity = Vector3.new(0, 0, 0)
             parts.velocity.Enabled = false
             debugPrint("LinearVelocity disabled")
         end
@@ -132,8 +121,6 @@ function FlightController.restoreControl()
     
     debugPrint("Restoring control")
     isCut = false
-    cutDuration = 0
-    cutTimer = 0
     
     local parts = FlightController.getPlaneParts()
     if parts then
@@ -161,10 +148,9 @@ end
 function FlightController.checkHealth()
     local health = StateManager.get("myHealth")
     
-    -- If health is 0 or below and we're not already cut
     if health and health <= 0 and not isCut then
         debugPrint("⚠️ Plane destroyed (HP = " .. health .. ") - cutting control")
-        FlightController.cutControl()  -- Indefinite cut
+        FlightController.cutControl()
         StateManager.set("isPlaneAlive", false)
         return true
     end
@@ -310,7 +296,6 @@ function FlightController.setTarget(position, mode)
         return false
     end
     
-    -- If control is cut, don't allow new targets
     if isCut then
         debugPrint("Cannot set target - control is cut")
         return false
@@ -337,14 +322,7 @@ end
 -- UPDATE (Called every frame by Heartbeat)
 -- ==========================================
 function FlightController.update()
-    -- If control is cut, handle duration
     if isCut then
-        if cutDuration > 0 then
-            cutTimer = cutTimer + 1/60  -- Approximate, since Heartbeat is ~60fps
-            if cutTimer >= cutDuration then
-                FlightController.restoreControl()
-            end
-        end
         return  -- Skip all control updates when cut
     end
     
