@@ -204,6 +204,10 @@ local function start()
     FlightController.start()
     print("[Main] FlightController started")
 
+    -- Start DataBridge (every frame) - ADDED
+    DataBridge.start()
+    print("[Main] DataBridge started")
+
     -- Keep the engine running FOREVER
     while isRunning do
         task.wait(1)
