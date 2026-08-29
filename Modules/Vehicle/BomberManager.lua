@@ -4,11 +4,25 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local StateManager = _G._Modules.StateManager
 local Debug = _G._Modules.Debug
 
 local BomberManager = {}
+
+-- ==========================================
+-- STATE
+-- ==========================================
+local trackingConnection = nil
+local myPlaneData = {}
+
+-- ==========================================
+-- DEBUG
+-- ==========================================
+local function debugPrint(...)
+    print("[BomberManager]", ...)
+end
 
 -- ==========================================
 -- FIND OUR BOMBER
@@ -67,7 +81,7 @@ function BomberManager.isUsInBomber(bomber)
 end
 
 -- ==========================================
--- GET PLANE DATA (with HP/Ammo/Fuel)
+-- GET PLANE DATA
 -- ==========================================
 function BomberManager.getPlaneData(plane)
     if not plane then return nil end
@@ -96,6 +110,7 @@ function BomberManager.getPlaneData(plane)
         position = position,
         altitude = position.Y,
         mainBody = mainBody,
+        velocity = mainBody.AssemblyLinearVelocity or Vector3.new(0,0,0),
         health = hp and hp.Value or 0,
         ammo = ammo and ammo.Value or 0,
         fuel = fuel and fuel.Value or 0,
@@ -109,39 +124,28 @@ function BomberManager.getPlaneData(plane)
 end
 
 -- ==========================================
--- UPDATE PLANE STATE (with HP/Ammo/Fuel)
+-- UPDATE OUR PLANE STATE (Fast - Every Frame)
 -- ==========================================
-function BomberManager.updatePlaneState()
+function BomberManager.updateOurPlane()
     local myBomber = BomberManager.findMyBomber()
     
     if myBomber then
         local data = BomberManager.getPlaneData(myBomber)
-        
-        -- We have a plane
-        StateManager.set("hasPlane", true)
-        StateManager.set("targetVehicle", myBomber)
-        StateManager.set("isPlaneAlive", data.isAlive)
-        StateManager.set("myHealth", data.health)
-        StateManager.set("myAmmo", data.ammo)
-        StateManager.set("myFuel", data.fuel)
-        
-        -- Check if we're seated in it
-        local inBomber = BomberManager.isUsInBomber(myBomber)
-        StateManager.set("seated", inBomber)
-        
-        if inBomber then
-            Debug.info("BomberManager", "We are seated in our bomber")
-            Debug.info("BomberManager", "Health:", data.health, "Ammo:", data.ammo, "Fuel:", data.fuel)
-        else
-            local occupant = BomberManager.getBomberOccupant(myBomber)
-            if occupant and occupant ~= "" and occupant ~= player.Name then
-                Debug.warn("BomberManager", "Our bomber is stolen by: " .. occupant)
-            else
-                Debug.info("BomberManager", "Our bomber is empty and waiting")
-            end
+        if data then
+            -- Update StateManager with fresh data
+            StateManager.set("hasPlane", true)
+            StateManager.set("targetVehicle", myBomber)
+            StateManager.set("isPlaneAlive", data.isAlive)
+            StateManager.set("myHealth", data.health)
+            StateManager.set("myAmmo", data.ammo)
+            StateManager.set("myFuel", data.fuel)
+            
+            -- Check if we're seated
+            local inBomber = BomberManager.isUsInBomber(myBomber)
+            StateManager.set("seated", inBomber)
+            
+            myPlaneData = data
         end
-        
-        return myBomber
     else
         -- No plane found
         StateManager.set("hasPlane", false)
@@ -151,9 +155,41 @@ function BomberManager.updatePlaneState()
         StateManager.set("myHealth", 0)
         StateManager.set("myAmmo", 0)
         StateManager.set("myFuel", 0)
-        
-        return nil
+        myPlaneData = {}
     end
+end
+
+-- ==========================================
+-- START FAST TRACKING (Called from Main)
+-- ==========================================
+function BomberManager.startTracking()
+    if trackingConnection then
+        return
+    end
+    
+    debugPrint("Starting fast plane tracking (every frame)")
+    
+    trackingConnection = RunService.Heartbeat:Connect(function()
+        BomberManager.updateOurPlane()
+    end)
+end
+
+-- ==========================================
+-- STOP TRACKING
+-- ==========================================
+function BomberManager.stopTracking()
+    if trackingConnection then
+        trackingConnection:Disconnect()
+        trackingConnection = nil
+        debugPrint("Plane tracking stopped")
+    end
+end
+
+-- ==========================================
+-- GET OUR PLANE DATA (Fresh)
+-- ==========================================
+function BomberManager.getOurPlaneData()
+    return myPlaneData
 end
 
 -- ==========================================
