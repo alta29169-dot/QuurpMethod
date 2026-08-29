@@ -254,6 +254,15 @@ function CombatBrain.start()
     end
     
     debugPrint("Starting combat loop (every frame)")
+
+    -- Add this to CombatBrain.start() temporarily
+    local plane = StateManager.get("targetVehicle")
+    if plane then
+        local ammo = plane:FindFirstChild("Ammo", true)
+        if ammo then
+            print("Ammo parent name:", ammo.Parent and ammo.Parent.Name)
+        end
+    end
     
     -- Equip RPG on start
     task.wait(1)  -- Wait for everything to load
