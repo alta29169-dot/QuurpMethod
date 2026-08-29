@@ -1,4 +1,4 @@
--- Main.lua – qurp v3 (Phase 1)
+-- Main.lua – qurp v3 ( Phase 1 )
 -- I love you Ashley
 
 local Players = game:GetService("Players")
@@ -37,9 +37,6 @@ local function heartbeat()
         for _, enemy in ipairs(enemies) do
             StateManager.addEnemy(enemy)
         end
-        
-        -- Update our plane status
-        local myBomber = BomberManager.updatePlaneState()
         
         if not StateManager.get("hasPlane") then
             -- No plane → walk to airport and spawn
@@ -91,10 +88,13 @@ local function heartbeat()
             end
             
             -- Check if we're still in the plane
-            local occupant = BomberManager.getBomberOccupant(myBomber)
-            if occupant ~= player.Name then
-                Debug.warn("Main", "We lost our seat!")
-                StateManager.set("seated", false)
+            local plane = StateManager.get("targetVehicle")
+            if plane then
+                local occupant = BomberManager.getBomberOccupant(plane)
+                if occupant ~= player.Name then
+                    Debug.warn("Main", "We lost our seat!")
+                    StateManager.set("seated", false)
+                end
             end
         end
     end
@@ -203,6 +203,10 @@ local function start()
     -- Start EnemyManager tracking loop (runs independently)
     task.spawn(EnemyManager.startTracking)
     print("[Main] EnemyManager tracking started")
+
+    -- Start BomberManager tracking (every frame)
+    task.spawn(BomberManager.startTracking)
+    print("[Main] BomberManager tracking started")
 
     -- Start CombatBrain (every frame)
     task.spawn(CombatBrain.start)
