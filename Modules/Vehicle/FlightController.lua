@@ -34,7 +34,6 @@ local RESPONSIVENESS = {
 local targetPosition = nil
 local currentMode = "cruise"
 local isFlying = false
-local isCut = false
 local constraintsInitialized = false
 
 -- ==========================================
@@ -95,10 +94,7 @@ end
 -- CUT CONTROL (Disable all constraints)
 -- ==========================================
 function FlightController.cutControl()
-    if isCut then return end
-    
     debugPrint("Cutting control")
-    isCut = true
     
     local parts = FlightController.getPlaneParts()
     if parts then
@@ -117,10 +113,7 @@ end
 -- RESTORE CONTROL (Re-enable constraints)
 -- ==========================================
 function FlightController.restoreControl()
-    if not isCut then return end
-    
     debugPrint("Restoring control")
-    isCut = false
     
     local parts = FlightController.getPlaneParts()
     if parts then
@@ -136,19 +129,12 @@ function FlightController.restoreControl()
 end
 
 -- ==========================================
--- IS CONTROL CUT?
--- ==========================================
-function FlightController.isControlCut()
-    return isCut
-end
-
--- ==========================================
 -- CHECK HEALTH (Called from heartbeat)
 -- ==========================================
 function FlightController.checkHealth()
     local health = StateManager.get("myHealth")
     
-    if health and health <= 0 and not isCut then
+    if health and health <= 0 then
         debugPrint("⚠️ Plane destroyed (HP = " .. health .. ") - cutting control")
         FlightController.cutControl()
         StateManager.set("isPlaneAlive", false)
@@ -296,11 +282,6 @@ function FlightController.setTarget(position, mode)
         return false
     end
     
-    if isCut then
-        debugPrint("Cannot set target - control is cut")
-        return false
-    end
-    
     targetPosition = position
     currentMode = mode or "cruise"
     isFlying = true
@@ -322,10 +303,6 @@ end
 -- UPDATE (Called every frame by Heartbeat)
 -- ==========================================
 function FlightController.update()
-    if isCut then
-        return  -- Skip all control updates when cut
-    end
-    
     if not isFlying then return end
     if not targetPosition then return end
     
