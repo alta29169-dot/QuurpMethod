@@ -378,26 +378,46 @@ end
 -- ==========================================
 function EnemyManager.getObservation()
     local obs = {
+        -- === SELF STATE ===
         health = 0,
         ammo = 0,
         fuel = 0,
         altitude = 0,
+        altitudeNormalized = 0,
+        distanceToKillZone = 0,
         speed = 0,
+        pitch = 0,                    -- NEW: plane pitch angle
+        isSeated = 0,
+        isAlive = 0,
+        
+        -- === ENEMY STATE ===
         enemyDistance = 0,
         enemyBearing = 0,
         enemyElevation = 0,
         enemyHealth = 0,
         enemyAltitude = 0,
+        enemyAltitudeNormalized = 0,
+        altitudeDifference = 0,       -- NEW: enemy.Y - self.Y
         enemySpeed = 0,
         enemyFacingAngle = 0,
+        
+        -- === ENEMY RELATIVE VELOCITY ===
+        enemyRelVelX = 0,             -- NEW
+        enemyRelVelY = 0,             -- NEW
+        enemyRelVelZ = 0,             -- NEW
+        
+        -- === ENEMY TYPE ===
         enemyIsBomber = 0,
         enemyIsTorpedo = 0,
         enemyIsLarge = 0,
-        isSeated = 0,
-        isAlive = 0,
+        
+        -- === COMBAT STATE ===
         enemiesInRange = 0,
+        weaponCooldown = 0,           -- NEW: RPG cooldown
+        mgToggled = 0,                -- NEW: MG state
     }
     
+    -- Get self state
     local selfPos = EnemyManager.getMyPosition()
     local selfVel = EnemyManager.getMyVelocity()
     local plane = StateManager.get("targetVehicle")
@@ -405,21 +425,47 @@ function EnemyManager.getObservation()
     
     if not selfPos then return obs end
     
+    local KILL_ZONE = 80
+    local MAX_ALTITUDE = 800
+    
+    -- Self state
     obs.altitude = selfPos.Y
+    obs.altitudeNormalized = clamp(selfPos.Y / MAX_ALTITUDE, 0, 1)
+    obs.distanceToKillZone = clamp((selfPos.Y - KILL_ZONE) / MAX_ALTITUDE, 0, 1)
     obs.speed = selfVel.Magnitude
     obs.isSeated = seated and 1 or 0
     obs.isAlive = player.Character and 1 or 0
     
+    -- Plane pitch angle (how much we're pointing up/down)
     if plane then
-        local hp = plane:FindFirstChild("HP")
-        local ammo = plane:FindFirstChild("Ammo")
-        local fuel = plane:FindFirstChild("Fuel")
-        
-        obs.health = hp and hp.Value / 100 or 0
-        obs.ammo = ammo and ammo.Value / 100 or 0
-        obs.fuel = fuel and fuel.Value / 100 or 0
+        local mainBody = plane:FindFirstChild("MainBody")
+        if mainBody then
+            local forward = mainBody.CFrame.LookVector
+            obs.pitch = clamp(math.deg(math.asin(forward.Y)) / 90, -1, 1)
+        end
     end
     
+    -- Get plane stats
+    if plane then
+        local hp = plane:FindFirstChild("HP")
+        local ammo = plane:FindFirstChild("BulletC")  -- Fixed: Ammo → BulletC
+        local fuel = plane:FindFirstChild("Fuel")
+        
+        obs.health = hp and clamp(hp.Value / 100, 0, 1) or 0
+        obs.ammo = ammo and clamp(ammo.Value / 100, 0, 1) or 0
+        obs.fuel = fuel and clamp(fuel.Value / 100, 0, 1) or 0
+    end
+    
+    -- Weapon state
+    local WeaponSystem = _G._Modules.WeaponSystem
+    if WeaponSystem then
+        local rpgStatus = WeaponSystem.getRPGStatus()
+        local mgStatus = WeaponSystem.getMGStatus()
+        obs.weaponCooldown = clamp(rpgStatus.cooldown / 3, 0, 1)  -- 0-1 (3s max)
+        obs.mgToggled = mgStatus.toggled and 1 or 0
+    end
+    
+    -- Get nearest enemy
     local enemyList = StateManager.getEnemyList()
     if not enemyList then return obs end
     
@@ -435,17 +481,30 @@ function EnemyManager.getObservation()
     
     if not nearest then return obs end
     
+    -- Enemy state
     obs.enemyDistance = clamp(nearest.distance / 2200, 0, 1)
-    obs.enemyBearing = clamp(nearest.bearing or 0 / 180, -1, 1)
-    obs.enemyElevation = clamp(nearest.elevation or 0 / 90, -1, 1)
+    obs.enemyBearing = clamp(nearest.bearing / 180, -1, 1)
+    obs.enemyElevation = clamp(nearest.elevation / 90, -1, 1)
     obs.enemyHealth = clamp(nearest.health / 100, 0, 1)
     obs.enemyAltitude = nearest.altitude
+    obs.enemyAltitudeNormalized = clamp(nearest.altitude / MAX_ALTITUDE, 0, 1)
+    obs.altitudeDifference = clamp((nearest.altitude - selfPos.Y) / MAX_ALTITUDE, -1, 1)
     obs.enemySpeed = nearest.velocity and nearest.velocity.Magnitude or 0
     
+    -- Enemy relative velocity
+    if nearest.velocity and selfVel then
+        local relVel = nearest.velocity - selfVel
+        obs.enemyRelVelX = clamp(relVel.X / 100, -1, 1)
+        obs.enemyRelVelY = clamp(relVel.Y / 100, -1, 1)
+        obs.enemyRelVelZ = clamp(relVel.Z / 100, -1, 1)
+    end
+    
+    -- Enemy type
     obs.enemyIsBomber = nearest.type == "Bomber" and 1 or 0
     obs.enemyIsTorpedo = nearest.type == "TorpedoBomber" and 1 or 0
     obs.enemyIsLarge = nearest.type == "LargeBomber" and 1 or 0
     
+    -- Enemy facing
     if nearest.lookAt then
         local enemyFacing = EnemyManager.getEnemyFacing(nearest)
         if enemyFacing then
