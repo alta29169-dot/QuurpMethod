@@ -254,20 +254,49 @@ function CombatBrain.start()
     end
     
     debugPrint("Starting combat loop (every frame)")
-
-    -- Add this to CombatBrain.start() temporarily
-    local plane = StateManager.get("targetVehicle")
-    if plane then
-        local ammo = plane:FindFirstChild("Ammo", true)
-        if ammo then
-            print("Ammo parent name:", ammo.Parent and ammo.Parent.Name)
-        end
-    end
     
-    -- Equip RPG on start
-    task.wait(1)  -- Wait for everything to load
+    -- EQUIP RPG ON START
+    task.wait(1)
     WeaponSystem.equipRPG()
     debugPrint("RPG equipped on start")
+    
+    -- 🔍 LIVE AMMO DEBUG (ADD THIS)
+    task.spawn(function()
+        while true do
+            task.wait(1)  -- Print every second
+            local plane = StateManager.get("targetVehicle")
+            if plane then
+                -- Search ALL descendants for Ammo
+                local found = nil
+                for _, child in ipairs(plane:GetDescendants()) do
+                    if child.Name == "Ammo" and child:IsA("IntValue") then
+                        found = child
+                        break
+                    end
+                end
+                
+                if found then
+                    print(string.format("🔍 DIRECT READ: Ammo = %d (Parent: %s)", 
+                        found.Value, 
+                        found.Parent and found.Parent.Name or "nil"))
+                else
+                    print("🔍 No Ammo found in plane!")
+                end
+                
+                -- Print what StateManager has
+                print(string.format("📊 STATEMANAGER: myAmmo = %s", 
+                    tostring(StateManager.get("myAmmo"))))
+                
+                -- Also check direct children
+                local directAmmo = plane:FindFirstChild("Ammo")
+                if directAmmo then
+                    print(string.format("📁 DIRECT CHILD: Ammo = %d", directAmmo.Value))
+                end
+            else
+                print("❌ No plane in StateManager")
+            end
+        end
+    end)
     
     combatConnection = RunService.Heartbeat:Connect(function()
         CombatBrain.update()
