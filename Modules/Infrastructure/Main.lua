@@ -204,13 +204,6 @@ local function start()
     FlightController.start()
     print("[Main] FlightController started")
 
-    -- Start DataBridge (every 2 seconds)
-    task.spawn(function()
-        task.wait(3)  -- Wait for everything to load
-        DataBridge.startTestLoop(2)
-        print("[Main] DataBridge started (sending every 2s)")
-    end)
-
     -- Keep the engine running FOREVER
     while isRunning do
         task.wait(1)
