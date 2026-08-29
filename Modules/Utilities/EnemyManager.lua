@@ -1,8 +1,9 @@
--- EnemyManager.lua – Enemy Detection and Tracking
+-- EnemyManager.lua – Enemy Detection and Tracking | WHY DID I DO THIS ON MY PERIOD
 
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
 local StateManager = _G._Modules.StateManager
 local Debug = _G._Modules.Debug
@@ -10,18 +11,16 @@ local Debug = _G._Modules.Debug
 local EnemyManager = {}
 
 -- ==========================================
--- DEBUG CONFIG (Toggle here)
+-- DEBUG CONFIG
 -- ==========================================
 local DEBUG_ENEMY_DETECTION = true
 local DEBUG_SCAN_SUMMARY = true
-local DEBUG_ENEMY_DETAILS = true
-local DEBUG_TRACKING = true
+local DEBUG_TRACKING = false  -- Turn off for performance
 
 -- ==========================================
 -- CONFIG
 -- ==========================================
 local SCAN_RANGE = 2200
-local TRACK_INTERVAL = 0.5
 local PLANE_TYPES = {
     "Bomber",
     "TorpedoBomber",
@@ -29,16 +28,15 @@ local PLANE_TYPES = {
 }
 
 -- ==========================================
+-- STATE
+-- ==========================================
+local trackingConnection = nil
+
+-- ==========================================
 -- DEBUG FUNCTIONS
 -- ==========================================
 local function debugPrint(...)
     if DEBUG_ENEMY_DETECTION then
-        print("[EnemyManager]", ...)
-    end
-end
-
-local function debugDetail(...)
-    if DEBUG_ENEMY_DETAILS then
         print("[EnemyManager]", ...)
     end
 end
@@ -151,7 +149,6 @@ function EnemyManager.scanForNewEnemies(scanRange)
     local newEnemies = {}
     local existingKeys = {}
     
-    -- Get existing enemies from StateManager
     local existing = StateManager.getEnemyList()
     for key, _ in pairs(existing) do
         existingKeys[key] = true
@@ -191,16 +188,6 @@ function EnemyManager.scanForNewEnemies(scanRange)
         local key = tostring(plane)
         if not existingKeys[key] then
             table.insert(newEnemies, data)
-            
-            if DEBUG_ENEMY_DETAILS then
-                debugDetail("═══ NEW ENEMY FOUND ═══")
-                debugDetail("  Type:", data.type)
-                debugDetail("  Team:", data.team, "(My team:", myTeam, ")")
-                debugDetail("  Health:", data.health)
-                debugDetail("  Distance:", math.floor(data.distance), "studs")
-                debugDetail("  Altitude:", math.floor(data.altitude))
-                debugDetail("═══════════════════════")
-            end
         end
     end
     
@@ -212,71 +199,106 @@ function EnemyManager.scanForNewEnemies(scanRange)
 end
 
 -- ==========================================
--- START TRACKING (Called by Main - runs independently)
+-- UPDATE TRACKED ENEMIES (Called every frame - SUPER FAST)
 -- ==========================================
-function EnemyManager.startTracking()
-    debugPrint("Tracking loop started")
+function EnemyManager.updateTrackedEnemies()
+    local enemyList = StateManager.getEnemyList()
+    if not enemyList then return end
     
-    while true do
-        task.wait(TRACK_INTERVAL)
-        
-        if not player.Character then
+    local toRemove = {}
+    local myPos = EnemyManager.getMyPosition()
+    local myTeam = EnemyManager.getMyTeam()
+    
+    for key, data in pairs(enemyList) do
+        local plane = data.instance
+        if not plane then
+            table.insert(toRemove, key)
             continue
         end
         
-        local enemyList = StateManager.getEnemyList()
-        if not enemyList then continue end
+        -- Get the main body (cheap property read)
+        local mainBody = plane:FindFirstChild("MainBody")
+        if not mainBody then
+            mainBody = plane.PrimaryPart
+        end
+        if not mainBody then
+            table.insert(toRemove, key)
+            continue
+        end
         
-        local toRemove = {}
-        local myPos = EnemyManager.getMyPosition()
+        -- Read properties (SUPER CHEAP - no Workspace scan)
+        local hp = plane:FindFirstChild("HP")
+        local ammo = plane:FindFirstChild("Ammo")
+        local fuel = plane:FindFirstChild("Fuel")
+        local occupant = plane:FindFirstChild("Occupant")
+        local lookAt = plane:FindFirstChild("LookAt")
         
-        for key, data in pairs(enemyList) do
-            if not data.instance then
+        local position = mainBody.Position
+        local velocity = mainBody.AssemblyLinearVelocity or Vector3.new(0,0,0)
+        
+        -- Update data
+        data.position = position
+        data.altitude = position.Y
+        data.velocity = velocity
+        data.health = hp and hp.Value or 0
+        data.ammo = ammo and ammo.Value or 0
+        data.fuel = fuel and fuel.Value or 0
+        data.occupant = occupant and occupant.Value or ""
+        data.isOccupied = occupant and occupant.Value ~= "" and occupant.Value ~= nil or false
+        data.lookAt = lookAt and lookAt.Value or nil
+        data.isAlive = hp and hp.Value > 0 or false
+        data.lastSeen = tick()
+        
+        -- Distance check (if we have position)
+        if myPos then
+            local distance = (position - myPos).Magnitude
+            data.distance = distance
+            data.bearing = math.deg(math.atan2((position - myPos).Unit.X, (position - myPos).Unit.Z))
+            
+            if distance > SCAN_RANGE then
                 table.insert(toRemove, key)
                 continue
-            end
-            
-            local freshData = EnemyManager.getPlaneData(data.instance)
-            
-            if not freshData then
-                table.insert(toRemove, key)
-                debugTrack("Removed: instance no longer exists")
-                continue
-            end
-            
-            -- Update all fields
-            data.position = freshData.position
-            data.altitude = freshData.altitude
-            data.health = freshData.health
-            data.velocity = freshData.velocity
-            data.ammo = freshData.ammo
-            data.fuel = freshData.fuel
-            data.isAlive = freshData.isAlive
-            data.isOccupied = freshData.isOccupied
-            data.occupant = freshData.occupant
-            data.lastSeen = tick()
-            
-            if not data.isAlive then
-                table.insert(toRemove, key)
-                debugTrack("Removed: enemy dead")
-                continue
-            end
-            
-            if myPos then
-                local distance = (data.position - myPos).Magnitude
-                data.distance = distance
-                
-                if distance > SCAN_RANGE then
-                    table.insert(toRemove, key)
-                    debugTrack(string.format("Removed: out of range (%.0f > %d)", distance, SCAN_RANGE))
-                    continue
-                end
             end
         end
         
-        for _, key in ipairs(toRemove) do
-            StateManager.removeEnemy(key)
+        -- Check if dead
+        if not data.isAlive then
+            table.insert(toRemove, key)
+            continue
         end
+    end
+    
+    -- Remove dead/out-of-range enemies
+    for _, key in ipairs(toRemove) do
+        StateManager.removeEnemy(key)
+        debugTrack("Removed enemy: " .. key)
+    end
+end
+
+-- ==========================================
+-- START TRACKING (Called by Main - Runs every frame)
+-- ==========================================
+function EnemyManager.startTracking()
+    if trackingConnection then
+        debugPrint("Tracking already running")
+        return
+    end
+    
+    debugPrint("Starting fast tracking (every frame)")
+    
+    trackingConnection = RunService.Heartbeat:Connect(function()
+        EnemyManager.updateTrackedEnemies()
+    end)
+end
+
+-- ==========================================
+-- STOP TRACKING
+-- ==========================================
+function EnemyManager.stopTracking()
+    if trackingConnection then
+        trackingConnection:Disconnect()
+        trackingConnection = nil
+        debugPrint("Tracking stopped")
     end
 end
 
@@ -401,7 +423,6 @@ function EnemyManager.getObservation()
     local enemyList = StateManager.getEnemyList()
     if not enemyList then return obs end
     
-    -- Find nearest enemy from StateManager
     local nearest = nil
     local nearestDist = math.huge
     
@@ -453,7 +474,6 @@ end
 function EnemyManager.setDebug(enabled)
     DEBUG_ENEMY_DETECTION = enabled
     DEBUG_SCAN_SUMMARY = enabled
-    DEBUG_ENEMY_DETAILS = enabled
     DEBUG_TRACKING = enabled
     debugPrint("Debug set to:", enabled)
 end
