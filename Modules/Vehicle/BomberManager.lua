@@ -101,7 +101,7 @@ function BomberManager.getPlaneData(plane)
     local ammo = plane:FindFirstChild("Ammo")
     if ammo then
         print("Ammo parent name:", ammo.Parent and ammo.Parent.Name or "nil")
-    else
+    emd
     local fuel = plane:FindFirstChild("Fuel")
     local team = plane:FindFirstChild("Team")
     
