@@ -22,6 +22,11 @@ local state = {
     hasPlane = false,         -- Do we own a plane?
     targetVehicle = nil,      -- Reference to our plane
     isPlaneAlive = false,     -- Is our plane still alive?
+
+    -- ===== WEAPON STATE =====
+    mgToggled = false,
+    rpgCooldown = 0,
+    lastRPGTime = 0,
     
     -- ===== PLAYER STATE =====
     generation = 0,           -- Respawn counter
