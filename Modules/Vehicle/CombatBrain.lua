@@ -9,15 +9,15 @@ local StateManager = _G._Modules.StateManager
 local Debug = _G._Modules.Debug
 local FlightController = _G._Modules.FlightController
 local EnemyManager = _G._Modules.EnemyManager
-local WeaponSystem = _G._Modules.WeaponSystem  -- ADDED
+local WeaponSystem = _G._Modules.WeaponSystem
 
 local CombatBrain = {}
 
 -- ==========================================
 -- DEBUG CONFIG
 -- ==========================================
-local DEBUG_COMBAT = true  -- Turn on for testing
-local TEST_WEAPONS = true  -- Enable weapon testing
+local DEBUG_COMBAT = true
+local TEST_WEAPONS = true
 
 local function debugPrint(...)
     if DEBUG_COMBAT then
@@ -33,7 +33,7 @@ local lastTargetUpdate = 0
 local TARGET_UPDATE_INTERVAL = 0.1
 local lastMGCheck = 0
 local lastRPGCheck = 0
-local WEAPON_CHECK_INTERVAL = 0.5  -- Check weapons every 0.5s
+local WEAPON_CHECK_INTERVAL = 0.5
 
 -- ==========================================
 -- GET MY POSITION
@@ -151,7 +151,6 @@ function testMG()
     
     if not nearestEnemy then
         debugPrint("MG Test: No enemies found")
-        -- Turn off MG if no enemies
         if WeaponSystem.getMGStatus().toggled then
             WeaponSystem.setMGToggle(false)
             debugPrint("MG Test: Turned off (no enemies)")
@@ -173,13 +172,11 @@ function testMG()
                 nearestDist, inArc and "✅" or "❌", ammo))
     
     if inArc and ammo > 0 then
-        -- Turn MG on
         if not WeaponSystem.getMGStatus().toggled then
             WeaponSystem.setMGToggle(true)
             debugPrint("MG Test: FIRING! 🎯")
         end
     else
-        -- Turn MG off
         if WeaponSystem.getMGStatus().toggled then
             WeaponSystem.setMGToggle(false)
             if ammo <= 0 then
@@ -255,48 +252,10 @@ function CombatBrain.start()
     
     debugPrint("Starting combat loop (every frame)")
     
-    -- EQUIP RPG ON START
-    task.wait(1)
+    -- Equip RPG on start
+    task.wait(1)  -- Wait for everything to load
     WeaponSystem.equipRPG()
     debugPrint("RPG equipped on start")
-    
-    -- 🔍 LIVE AMMO DEBUG (ADD THIS)
-    task.spawn(function()
-        while true do
-            task.wait(1)  -- Print every second
-            local plane = StateManager.get("targetVehicle")
-            if plane then
-                -- Search ALL descendants for Ammo
-                local found = nil
-                for _, child in ipairs(plane:GetDescendants()) do
-                    if child.Name == "Ammo" and child:IsA("IntValue") then
-                        found = child
-                        break
-                    end
-                end
-                
-                if found then
-                    print(string.format("🔍 DIRECT READ: Ammo = %d (Parent: %s)", 
-                        found.Value, 
-                        found.Parent and found.Parent.Name or "nil"))
-                else
-                    print("🔍 No Ammo found in plane!")
-                end
-                
-                -- Print what StateManager has
-                print(string.format("📊 STATEMANAGER: myAmmo = %s", 
-                    tostring(StateManager.get("myAmmo"))))
-                
-                -- Also check direct children
-                local directAmmo = plane:FindFirstChild("Ammo")
-                if directAmmo then
-                    print(string.format("📁 DIRECT CHILD: Ammo = %d", directAmmo.Value))
-                end
-            else
-                print("❌ No plane in StateManager")
-            end
-        end
-    end)
     
     combatConnection = RunService.Heartbeat:Connect(function()
         CombatBrain.update()
@@ -313,7 +272,6 @@ function CombatBrain.stop()
         debugPrint("Combat loop stopped")
     end
     
-    -- Stop all weapons
     WeaponSystem.stopAll()
 end
 
