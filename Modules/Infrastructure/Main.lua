@@ -14,6 +14,7 @@ local BomberManager = _G._Modules.BomberManager
 local EnemyManager = _G._Modules.EnemyManager
 local FlightController = _G._Modules.FlightController
 local CombatBrain = _G._Modules.CombatBrain
+local DataBridge = _G._Modules.DataBridge  
 
 local isRunning = true
 
@@ -202,6 +203,13 @@ local function start()
     -- Start FlightController
     FlightController.start()
     print("[Main] FlightController started")
+
+    -- Start DataBridge (every 2 seconds)
+    task.spawn(function()
+        task.wait(3)  -- Wait for everything to load
+        DataBridge.startTestLoop(2)
+        print("[Main] DataBridge started (sending every 2s)")
+    end)
 
     -- Keep the engine running FOREVER
     while isRunning do
