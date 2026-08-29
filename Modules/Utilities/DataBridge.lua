@@ -1,4 +1,4 @@
--- DataBridge.lua – Communicates with Python RL server
+-- DataBridge.lua – Ultra-low latency WebSocket Client for Roblox Executors
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -7,162 +7,75 @@ local player = Players.LocalPlayer
 
 local StateManager = _G._Modules.StateManager
 local EnemyManager = _G._Modules.EnemyManager
-local Debug = _G._Modules.Debug
 
 local DataBridge = {}
 
 -- ==========================================
--- DEBUG CONFIG
+-- CONFIG
 -- ==========================================
 local DEBUG = true
+local WS_URL = "ws://127.0.0.1:5000/ws"
+local SEND_INTERVAL = 0.05 -- 20 Hz transmission rate
+
+local socket = nil
+local isRunning = false
+local lastSendTime = 0
+local latestAction = nil
 
 local function debugPrint(...)
     if DEBUG then
-        print("[DataBridge]", ...)
+        print("[DataBridge-WS]", ...)
     end
 end
 
 -- ==========================================
--- CONFIG
+-- WEBSOCKET CONNECTION
 -- ==========================================
-local PYTHON_URL = "http://localhost:5000"
-local TIMEOUT = 5
-local SEND_INTERVAL = 0.1  -- Send observation every 0.1s (10Hz)
-local BOT_ID = nil
-local isRunning = false
-local loopConnection = nil
-
--- ==========================================
--- GET BOT ID
--- ==========================================
-local function getBotId()
-    if not BOT_ID then
-        BOT_ID = player.Name
+function DataBridge.connect()
+    if socket then
+        pcall(function() socket:Close() end)
     end
-    return BOT_ID
-end
-
--- ==========================================
--- SEND OBSERVATION → Python
--- ==========================================
-function DataBridge.sendObservation()
-    local observation = EnemyManager.getObservation()
-    if not observation then
+    
+    debugPrint("Connecting to WebSocket server at " .. WS_URL .. "...")
+    local success, ws = pcall(function()
+        return WebSocket.connect(WS_URL)
+    end)
+    
+    if not success or not ws then
+        debugPrint("❌ WebSocket connection failed. Is the Python server running?")
         return false
     end
     
-    local data = {
-        id = getBotId(),
-        timestamp = tick(),
-        observation = observation,
-    }
+    socket = ws
     
-    local json = HttpService:JSONEncode(data)
-    
-    if DEBUG then
-        debugPrint(string.format("📤 Sending: Health: %.2f, EnemyDist: %.2f, Enemies: %d",
-            observation.health or 0,
-            observation.enemyDistance or 0,
-            observation.enemiesInRange or 0
-        ))
-    end
-    
-    local success, response = pcall(function()
-        return request({
-            Url = PYTHON_URL .. "/observe",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["ngrok-skip-browser-warning"] = "true",
-            },
-            Body = json,
-            Timeout = TIMEOUT,
-        })
+    socket.OnMessage:Connect(function(msg)
+        local successDecode, decoded = pcall(function()
+            return HttpService:JSONDecode(msg)
+        end)
+        if successDecode and decoded and decoded.action then
+            latestAction = decoded.action
+        end
     end)
     
-    if not success then
-        return false
-    end
+    socket.OnClose:Connect(function()
+        debugPrint("⚠️ WebSocket connection closed.")
+        socket = nil
+        isRunning = false
+    end)
     
-    return response and response.StatusCode == 200
+    debugPrint("✅ WebSocket connected successfully!")
+    return true
+end
+
+function DataBridge.getAction()
+    return latestAction
 end
 
 -- ==========================================
--- REQUEST ACTION ← Python
+-- MAIN LOOP (Heartbeat Stream)
 -- ==========================================
-function DataBridge.requestAction()
-    local observation = EnemyManager.getObservation()
-    if not observation then
-        return nil
-    end
-    
-    local data = {
-        id = getBotId(),
-        timestamp = tick(),
-        observation = observation,
-    }
-    
-    local json = HttpService:JSONEncode(data)
-    
-    local success, response = pcall(function()
-        return request({
-            Url = PYTHON_URL .. "/act",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["ngrok-skip-browser-warning"] = "true",
-            },
-            Body = json,
-            Timeout = TIMEOUT,
-        })
-    end)
-    
-    if not success or not response or response.StatusCode ~= 200 then
-        return nil
-    end
-    
-    local decoded = HttpService:JSONDecode(response.Body)
-    return decoded.action
-end
-
--- ==========================================
--- SEND REWARD → Python
--- ==========================================
-function DataBridge.sendReward(reward, done)
-    local data = {
-        id = getBotId(),
-        timestamp = tick(),
-        reward = reward,
-        done = done or false,
-    }
-    
-    local json = HttpService:JSONEncode(data)
-    
-    if DEBUG then
-        debugPrint(string.format("🎯 Reward: %.2f, Done: %s", reward, tostring(done)))
-    end
-    
-    pcall(function()
-        request({
-            Url = PYTHON_URL .. "/reward",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["ngrok-skip-browser-warning"] = "true",
-            },
-            Body = json,
-            Timeout = TIMEOUT,
-        })
-    end)
-end
-
--- ==========================================
--- MAIN LOOP (Runs on Heartbeat)
--- ==========================================
-local lastSendTime = 0
-
-function DataBridge.loop()
-    if not isRunning then return end
+local function loop()
+    if not isRunning or not socket then return end
     
     local now = tick()
     if now - lastSendTime < SEND_INTERVAL then
@@ -170,16 +83,31 @@ function DataBridge.loop()
     end
     lastSendTime = now
     
-    -- Only send if we're seated (in a plane)
+    -- Only stream data if the player is actively seated in a vehicle
     if not StateManager.get("seated") then
         return
     end
     
-    DataBridge.sendObservation()
+    local observation = EnemyManager.getObservation()
+    if not observation then
+        return
+    end
+    
+    local payload = {
+        id = player.Name,
+        timestamp = now,
+        observation = observation,
+        reward = StateManager.get("currentReward") or 0,
+        done = false
+    }
+    
+    pcall(function()
+        socket:Send(HttpService:JSONEncode(payload))
+    end)
 end
 
 -- ==========================================
--- START (Called from Main)
+-- CONTROLS
 -- ==========================================
 function DataBridge.start()
     if isRunning then
@@ -187,43 +115,25 @@ function DataBridge.start()
         return
     end
     
-    debugPrint("Starting DataBridge (sending every " .. SEND_INTERVAL .. "s)")
+    if not socket then
+        if not DataBridge.connect() then
+            return
+        end
+    end
+    
+    debugPrint("Starting DataBridge WebSocket loop...")
     isRunning = true
     
-    loopConnection = RunService.Heartbeat:Connect(function()
-        DataBridge.loop()
-    end)
+    RunService.Heartbeat:Connect(loop)
 end
 
--- ==========================================
--- STOP
--- ==========================================
 function DataBridge.stop()
     isRunning = false
-    if loopConnection then
-        loopConnection:Disconnect()
-        loopConnection = nil
+    if socket then
+        pcall(function() socket:Close() end)
+        socket = nil
     end
     debugPrint("DataBridge stopped")
-end
-
--- ==========================================
--- TEST CONNECTION (Single send)
--- ==========================================
-function DataBridge.testConnection()
-    debugPrint("Testing connection to Python server...")
-    debugPrint("URL:", PYTHON_URL)
-    
-    local success = DataBridge.sendObservation()
-    
-    if success then
-        debugPrint("✅ Connection successful!")
-    else
-        debugPrint("❌ Connection failed. Is Python server running?")
-        debugPrint("   Run: python3 server.py")
-    end
-    
-    return success
 end
 
 return DataBridge
