@@ -19,8 +19,7 @@ local MODULE_NAMES = {
     "BomberManager",
     "AutoSeater",
     "FlightController",
-    "WeaponSystem",
-    "DataBridge",     
+    "WeaponSystem",   
     "CombatBrain",
     "Main",
 }
@@ -43,7 +42,7 @@ local function fetchModule(name, retries)
         folder = "Navigation"
     elseif name == "AutoSeater" or name == "BomberManager" or name == "FlightController" or name == "CombatBrain" or name == "WeaponSystem" then
         folder = "Vehicle"
-    elseif name == "PathfindingUtils" or name == "EnemyManager" or name == "DataBridge" then
+    elseif name == "PathfindingUtils" or name == "EnemyManager" then
         folder = "Utilities"
     end
     
